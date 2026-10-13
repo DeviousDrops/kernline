@@ -44,7 +44,7 @@ bench/bench.cu        bench <kernel> <variant> <dims> → CSV row (warmup, media
 block/block.cu        end-to-end transformer block runner (D4)
 tests/                pytest via ctypes vs torch, incl. sizes not divisible by tile
 tools/smoke/          day-1 go/no-go check
-tools/profile.sh      ncu wrapper → results/ncu/<gpu>/*.ncu-rep + metrics CSV
+tools/profile.sh      ncu wrapper → results/ncu/<gpu>/*.ncu-repz + metrics CSV
 tools/ceilings/       microbenchmarks → specs/<gpu>.json
 analysis/roofline.py  plots from results/*.csv, one panel per GPU
 model/                Python performance model (Part A)
@@ -55,6 +55,8 @@ results/<gpu>/*.csv   committed measurements
 
 ## Frozen interfaces
 - **Launcher signature style:** `extern "C" int gemm_v2(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);` returns a `cudaError_t` cast to int. Row-major, device pointers.
+- **Memory:** benchmarks, tests, and microbenchmarks use `cudaMalloc` + explicit `cudaMemcpy`, never `cudaMallocManaged`. Under WSL2, managed pages migrate on first touch *inside* the kernel, so timings and ncu DRAM bytes measure page migration, not the kernel.
+- **ncu reports:** Nsight Compute 2026.x writes compressed `.ncu-repz`. Commit them under `results/ncu/<gpu>/<kernel>_<variant>_<dims>.ncu-repz`.
 - **CSV schema:** `gpu,sm_clk_mhz,mem_clk_mhz,kernel,variant,dims,time_ms,flop,bytes_theory,dram_bytes,achieved_occ,notes`. `dims` is `x`-joined, e.g. `4096x4096x4096`.
 - **ncu metrics:** `gpu__time_duration.sum`, `dram__bytes_read.sum`, `dram__bytes_write.sum`, `sm__throughput.avg.pct_of_peak_sustained_elapsed`, `sm__warps_active.avg.pct_of_peak_sustained_active`, `l1tex__data_bank_conflicts_pipe_lsu_mem_shared.sum`, `l1tex__t_sector_hit_rate.pct`, `lts__t_sector_hit_rate.pct`, `smsp__average_warp_latency_issue_stalled_*`.
 - **Model kernel descriptor** (`model/kernels/<kernel>.py`): `flops(dims)`, `bytes(dims, variant)`, `launch_cfg(dims, variant)`, `resources(variant)` (regs/smem from `nvcc --resource-usage`).

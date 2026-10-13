@@ -1,6 +1,7 @@
 // Day-1 go/no-go: does the toolchain build, does the GPU run it, can ncu read counters?
 #include <cstdio>
 #include <cstdlib>
+#include <vector>
 #include <cuda_runtime.h>
 
 #define CUDA_CHECK(x)                                                        \
@@ -27,19 +28,26 @@ int main() {
     std::printf("GPU: %s (sm_%d%d, %d SMs)\n", prop.name, prop.major, prop.minor,
                 prop.multiProcessorCount);
 
+    // Plain device memory + explicit copies. Managed memory would migrate pages inside the
+    // kernel under WSL2, and ncu would time the migration instead of the kernel.
+    std::vector<float> ha(n, 1.0f), hb(n, 2.0f), hc(n);
     float *a, *b, *c;
-    CUDA_CHECK(cudaMallocManaged(&a, bytes));
-    CUDA_CHECK(cudaMallocManaged(&b, bytes));
-    CUDA_CHECK(cudaMallocManaged(&c, bytes));
-    for (int i = 0; i < n; ++i) { a[i] = 1.0f; b[i] = 2.0f; }
+    CUDA_CHECK(cudaMalloc(&a, bytes));
+    CUDA_CHECK(cudaMalloc(&b, bytes));
+    CUDA_CHECK(cudaMalloc(&c, bytes));
+    CUDA_CHECK(cudaMemcpy(a, ha.data(), bytes, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(b, hb.data(), bytes, cudaMemcpyHostToDevice));
 
     vadd<<<(n + 255) / 256, 256>>>(a, b, c, n);
     CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaMemcpy(hc.data(), c, bytes, cudaMemcpyDeviceToHost));
 
     for (int i = 0; i < n; ++i) {
-        if (c[i] != 3.0f) { std::printf("FAIL at %d\n", i); return 1; }
+        if (hc[i] != 3.0f) { std::printf("FAIL at %d\n", i); return 1; }
     }
     std::printf("PASS\n");
+    cudaFree(a);
+    cudaFree(b);
+    cudaFree(c);
     return 0;
 }

@@ -25,10 +25,12 @@ __pycache__/
 
 # Profiler output: keep only reports deliberately placed under results/
 *.ncu-rep
+*.ncu-repz
 *.nsys-rep
 *.qdrep
 *.sqlite
 !results/**/*.ncu-rep
+!results/**/*.ncu-repz
 
 # Cache-sim traces (large, regenerate with sim/)
 sim/traces/
