@@ -60,6 +60,18 @@ results/<gpu>/*.csv   committed measurements
 - **Model kernel descriptor** (`model/kernels/<kernel>.py`): `flops(dims)`, `bytes(dims, variant)`, `launch_cfg(dims, variant)`, `resources(variant)` (regs/smem from `nvcc --resource-usage`).
 
 ## Workflow
-- One branch per kernel variant. Every PR is reviewed by the other person, which is how both learn both halves.
-- Each optimization PR includes: a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
+- **Nobody pushes to `main`.** All work goes through a pull request from a branch named `<part>/<kernel>-<variant>` (e.g. `a/gemm-v2`, `b/softmax-v1`) or `<part>/<topic>` for tooling.
+- **The other person reviews and merges.** Authors never merge their own PRs. That review is how both learn both halves.
+- Each optimization PR fills in `.github/pull_request_template.md`: a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
+- Commits, PR descriptions, and review comments contain no AI/tool attribution lines (no `Co-Authored-By` trailers, no "generated with" footers).
 - Weekly sync: merge both GPUs' results and regenerate the plots.
+
+### Reviewing a PR
+1. Check out the branch: `gh pr checkout <n>`.
+2. Build and run the tests **on your own GPU**: `cmake --build build && pytest tests/`. A PR that passes only on the author's GPU is not done.
+3. Re-run the PR's benchmark row on your GPU and check that the numbers and the roofline sentence are plausible (the ncu metric actually supports the claim).
+4. Check the frozen interfaces (launcher signature, CSV schema, metric list) are unchanged, or changed together with `docs/DESIGN.md`.
+5. Decide:
+   - **Good:** `gh pr review <n> --approve`, then `gh pr merge <n> --squash --delete-branch`.
+   - **Needs changes:** `gh pr review <n> --request-changes -b "<what and why>"`, plus inline comments on specific lines (`gh api repos/{owner}/{repo}/pulls/<n>/comments`). The author pushes fixes to the same branch and re-requests review.
+   - **Small question, not blocking:** `gh pr review <n> --comment -b "..."`.
