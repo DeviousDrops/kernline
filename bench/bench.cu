@@ -6,6 +6,7 @@
 //   bench gemm      <variant> <M> <N> <K>
 //   bench softmax   <variant> <rows> <cols>
 //   bench layernorm <variant> <rows> <cols>
+//   bench attention <variant> <heads> <N> <d>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -14,6 +15,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <nvtx3/nvToolsExt.h>
 #include "common/cuda_check.h"
 #include "common/gpu_info.h"
 #include "common/timer.h"
@@ -23,6 +25,7 @@ static const int kWarmup = 3;
 static const float kWarmupMs = 500.0f;
 static const float kBatchMs = 5.0f;  // minimum length of one timed run
 static const int kRuns = 21;         // median of >= 20
+static const char* kProfileRange = "kl_profile";  // see time_launch and tools/profile.sh
 
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
 // v4 takes FP16 A and B: same buffers, filled as halves (see device_random).
@@ -54,6 +57,14 @@ static const struct { const char* variant; LayerNormFn fn; } kLayerNorm[] = {
     {"v1", layernorm_v1},
     {"v2", layernorm_v2},
     {"v3", layernorm_v3},
+};
+
+typedef int (*AttentionFn)(const float*, const float*, const float*, float*, float*, int, int, int,
+                           cudaStream_t);
+static const struct { const char* variant; AttentionFn fn; } kAttention[] = {
+    {"v0", attention_v0},
+    {"v1", attention_v1},
+    {"v2", attention_v2},
 };
 
 template <class Table>
@@ -97,6 +108,13 @@ static Timing time_launch(const std::function<int()>& launch) {
         CUDA_CHECK(launch());
         warm_ms += timer.stop_ms();
     }
+    // One complete call inside an NVTX range, after the warmup (caches and clocks are hot).
+    // tools/profile.sh profiles exactly the kernels in this range, however many one call launches
+    // (attention launches 2·heads + 2 kernels per call).
+    nvtxRangePushA(kProfileRange);
+    CUDA_CHECK(launch());
+    nvtxRangePop();
+    CUDA_CHECK(cudaDeviceSynchronize());
     // Each timed run is a batch of back-to-back launches lasting >= kBatchMs. Timing a sub-ms
     // kernel alone leaves the GPU idle between syncs (clocks sag) and puts launch/WSL jitter
     // into the measurement; the batch keeps the GPU busy and amortizes both.
@@ -126,6 +144,8 @@ static int usage() {
     for (const auto& e : kSoftmax) std::fprintf(stderr, " %s", e.variant);
     std::fprintf(stderr, "\n       bench layernorm <variant> <rows> <cols> variants:");
     for (const auto& e : kLayerNorm) std::fprintf(stderr, " %s", e.variant);
+    std::fprintf(stderr, "\n       bench attention <variant> <heads> <N> <d> variants:");
+    for (const auto& e : kAttention) std::fprintf(stderr, " %s", e.variant);
     std::fprintf(stderr, "\n");
     return 2;
 }
@@ -187,6 +207,32 @@ static int bench_rowwise(const char* kernel, const char* variant, int rows, int 
     return 0;
 }
 
+// Unfused attention over `heads` (= batch × heads) heads of N×d. dims are written headsxNxd.
+//   flop:  2·N²·d (Q·Kᵀ) + 5·N² (softmax, as above) + 2·N²·d (P·V) per head
+//   bytes: the floor for an *unfused* implementation, whatever its kernels: read Q, K, V and
+//          write O once (4·N·d floats), and move the N×N scores four times: Q·Kᵀ writes S,
+//          softmax reads S and writes P, P·V reads P. So arithmetic intensity is bounded by
+//          ~(4·N²·d) / (16·N²) = d/4 FLOP/byte, independent of N: 16 for GPT-2's d = 64.
+static int bench_attention(const char* variant, int heads, int N, int d) {
+    AttentionFn fn = find(kAttention, variant);
+    if (!fn || heads <= 0 || N <= 0 || d <= 0) return usage();
+    const size_t qkv = (size_t)heads * N * d;
+    float* Q = device_random(qkv);
+    float* K = device_random(qkv);
+    float* V = device_random(qkv);
+    float* O = device_random(qkv);
+    float* work;
+    CUDA_CHECK(cudaMalloc(&work, attention_workspace_bytes(heads, N, d)));
+    Timing t = time_launch([&] { return fn(Q, K, V, O, work, heads, N, d, 0); });
+    const double nn = (double)heads * N * N;
+    const double flop = 4.0 * nn * d + 5.0 * nn;
+    const double bytes = 4.0 * (4.0 * qkv + 4.0 * nn);
+    print_row(t, "attention", variant,
+              std::to_string(heads) + "x" + std::to_string(N) + "x" + std::to_string(d), flop, bytes);
+    for (float* p : {Q, K, V, O, work}) cudaFree(p);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc == 2 && !std::strcmp(argv[1], "--header")) {
         std::puts("gpu,sm_clk_mhz,mem_clk_mhz,kernel,variant,dims,time_ms,flop,bytes_theory,"
@@ -197,5 +243,7 @@ int main(int argc, char** argv) {
         return bench_gemm(argv[2], std::atoi(argv[3]), std::atoi(argv[4]), std::atoi(argv[5]));
     if (argc == 5 && (!std::strcmp(argv[1], "softmax") || !std::strcmp(argv[1], "layernorm")))
         return bench_rowwise(argv[1], argv[2], std::atoi(argv[3]), std::atoi(argv[4]));
+    if (argc == 6 && !std::strcmp(argv[1], "attention"))
+        return bench_attention(argv[2], std::atoi(argv[3]), std::atoi(argv[4]), std::atoi(argv[5]));
     return usage();
 }

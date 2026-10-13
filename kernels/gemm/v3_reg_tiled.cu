@@ -94,11 +94,16 @@ __device__ __forceinline__ void gemm_v3_body(const float* A, const float* B, flo
 
 }  // namespace
 
-__global__ void gemm_v3_kernel(const float* A, const float* B, float* C, int M, int N, int K) {
-    gemm_v3_body<true>(A, B, C, M, N, K);
+// blockIdx.z selects one matrix of a batch, `stride*` floats apart (0 for a single GEMM).
+__global__ void gemm_v3_kernel(const float* A, const float* B, float* C, int M, int N, int K,
+                               long long strideA, long long strideB, long long strideC) {
+    const long long z = blockIdx.z;
+    gemm_v3_body<true>(A + z * strideA, B + z * strideB, C + z * strideC, M, N, K);
 }
 
 __global__ void gemm_v3_scalar_kernel(const float* A, const float* B, float* C, int M, int N,
-                                      int K) {
-    gemm_v3_body<false>(A, B, C, M, N, K);
+                                      int K, long long strideA, long long strideB,
+                                      long long strideC) {
+    const long long z = blockIdx.z;
+    gemm_v3_body<false>(A + z * strideA, B + z * strideB, C + z * strideC, M, N, K);
 }
