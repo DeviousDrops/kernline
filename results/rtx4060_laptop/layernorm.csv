@@ -1,0 +1,5 @@
+gpu,sm_clk_mhz,mem_clk_mhz,kernel,variant,dims,time_ms,flop,bytes_theory,dram_bytes,achieved_occ,notes
+rtx4060_laptop,2520,8001,layernorm,v0,1024x768,0.2369,6291456,6297600,3259648,8.32,ncu
+rtx4060_laptop,2505,8001,layernorm,v0,8192x768,0.8892,50331648,50337792,52577920,22.66,ncu
+rtx4060_laptop,2010,7001,layernorm,torch,1024x768,0.0908,6291456,6297600,3277824,86.9,ncu
+rtx4060_laptop,2115,7001,layernorm,torch,8192x768,0.2211,50331648,50337792,42506624,92.07,ncu
