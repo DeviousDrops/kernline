@@ -44,7 +44,7 @@ mkdir -p "results/ncu/$gpu"
 METRICS="gpu__time_duration.sum,dram__bytes_read.sum,dram__bytes_write.sum,\
 sm__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_peak_sustained_active,\
 l1tex__data_bank_conflicts_pipe_lsu_mem_shared.sum,l1tex__t_sector_hit_rate.pct,\
-lts__t_sector_hit_rate.pct,regex:smsp__average_warp_latency_issue_stalled_.*"  # ncu rejects ^/$ anchors
+lts__t_sector_hit_rate.pct,regex:smsp__average_warps_issue_stalled_.*_per_issue_active"  # ncu rejects ^/$ anchors
 
 "$NCU" --clock-control base "${filter[@]}" --launch-skip "${SKIP:-3}" --launch-count 1 \
     --section SpeedOfLight --section MemoryWorkloadAnalysis --section Occupancy \

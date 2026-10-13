@@ -21,7 +21,12 @@ from pathlib import Path
 RESULTS_HEADER = ["gpu", "sm_clk_mhz", "mem_clk_mhz", "kernel", "variant", "dims", "time_ms",
                   "flop", "bytes_theory", "dram_bytes", "achieved_occ", "notes"]
 
-STALL_PREFIX = "smsp__average_warp_latency_issue_stalled_"
+# Warps stalled on each reason per issue cycle (what Nsight Compute's "Warp State" chart shows):
+# a value of 21 means an average of 21 warp-cycles of that stall for every instruction issued.
+# Not smsp__average_warp_latency_issue_stalled_*, which is total cycles per warp and grows with
+# kernel length.
+STALL_PREFIX = "smsp__average_warps_issue_stalled_"
+STALL_SUFFIX = "_per_issue_active.ratio"
 
 # metrics.csv column -> (ncu metric, how to combine across kernels in one report)
 COLUMNS = {
@@ -39,7 +44,7 @@ COLUMNS = {
     "grid_size": ("launch__grid_size", "max"),
 }
 METRICS_HEADER = (["gpu", "kernel", "variant", "dims", "kernels_in_report"] + list(COLUMNS)
-                  + ["top_stall", "top_stall_cycles"])
+                  + ["top_stall", "top_stall_per_issue"])
 
 
 def ncu_binary() -> str:
@@ -88,17 +93,16 @@ def extract(kernels: list[dict]) -> dict:
     stalls = {}
     for k, t in zip(kernels, times):
         for name, val in k.items():
-            # .ratio = stall cycles per issued instruction; _pipe_ entries split a reason by pipe
-            if (name.startswith(STALL_PREFIX) and name.endswith(".ratio") and "_pipe_" not in name
+            if (name.startswith(STALL_PREFIX) and name.endswith(STALL_SUFFIX)
                     and _num(val) is not None):
-                reason = name[len(STALL_PREFIX):-len(".ratio")]
+                reason = name[len(STALL_PREFIX):-len(STALL_SUFFIX)]
                 stalls[reason] = stalls.get(reason, 0.0) + _num(val) * t / total_t
     stalls.pop("selected", None)  # "selected" is issuing, not stalling
     if stalls:
         top = max(stalls, key=stalls.get)
-        row["top_stall"], row["top_stall_cycles"] = top, stalls[top]
+        row["top_stall"], row["top_stall_per_issue"] = top, stalls[top]
     else:
-        row["top_stall"] = row["top_stall_cycles"] = ""
+        row["top_stall"] = row["top_stall_per_issue"] = ""
     return row
 
 

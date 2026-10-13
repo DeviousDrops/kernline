@@ -33,6 +33,15 @@ def test_extract_matches_recorded_row():
     assert m["block_size"] == 256
 
 
+def test_top_stall_is_per_issued_instruction():
+    # GEMM v4 waits on the tensor pipe. The per-warp latency metric this replaced ranked a rarer,
+    # longer stall first and reported ~1e5 "cycles"; per issue it is math_pipe_throttle at ~15.
+    m = ncu_metrics.extract(ncu_metrics.read_report(
+        ROOT / "results/ncu/rtx4070_laptop/gemm_v4_4096x4096x4096.ncu-repz"))
+    assert m["top_stall"] == "math_pipe_throttle"
+    assert 5 < m["top_stall_per_issue"] < 50
+
+
 def test_upsert_replaces_matching_row(tmp_path):
     out = tmp_path / "gemm.csv"
     row = "rtx4070_laptop,2490,8001,gemm,v0,1024x1024x1024,10.0,2147483648,12582912,,,"
