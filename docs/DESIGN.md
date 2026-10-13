@@ -8,7 +8,7 @@ Hand-written CUDA kernels for a transformer block (GEMM, softmax, LayerNorm, att
 ## Team and hardware
 | Part | Owner | GPU | Focus |
 |---|---|---|---|
-| A | Partner | RTX 4070 Laptop (AD106, `sm_89`, 36 SM, 8 GB, 128-bit GDDR6 ~256 GB/s, 32 MB L2) | GEMM + performance model |
+| A | Arjun | RTX 4070 Laptop (AD106, `sm_89`, 36 SM, 8 GB, 128-bit GDDR6 ~256 GB/s, 32 MB L2) | GEMM + performance model |
 | B | Kartik | RTX 4060 Laptop (AD107, `sm_89`, 24 SM, 8 GB, 128-bit GDDR6 ~256 GB/s, 32 MB L2) | softmax, LayerNorm, attention + cache simulator |
 
 Both GPUs are Ada laptop parts with the **same memory system** (bus width, nominal bandwidth, L2 size) and **different SM counts** (36 vs 24). That makes this a near-controlled experiment: compute-bound kernels should scale with SMs × clock (~1.5×), while memory-bound kernels should run at about the same speed on both. Laptop power limits (TGP) differ per machine, so clocks must be measured, not assumed (D3, D7). The second GPU is the model's held-out test set.
