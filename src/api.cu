@@ -91,6 +91,25 @@ extern "C" int softmax_v1(const float* x, float* y, int rows, int cols, cudaStre
     return cudaGetLastError();
 }
 
+// v2 register-cache size: the smallest kCache with 128·kCache >= cols, or 0 (stream) past 2048.
+// 16 float4 = 64 registers of row data per lane is the largest that keeps 3 blocks per SM.
+static int v2_cache(int cols) {
+    for (int k : {1, 2, 4, 8, 16})
+        if (cols <= 128 * k) return k;
+    return 0;
+}
+
+extern "C" int softmax_v2(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int k = rows_vectorizable(cols, x, y) ? v2_cache(cols) : -1;
+    return softmax_v2_launch(k, x, y, rows, cols, s);
+}
+
+extern "C" int layernorm_v2(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int k = rows_vectorizable(cols, x, gamma, beta, y) ? v2_cache(cols) : -1;
+    return layernorm_v2_launch(k, x, gamma, beta, y, rows, cols, eps, s);
+}
+
 extern "C" int layernorm_v1(const float* x, const float* gamma, const float* beta, float* y,
                             int rows, int cols, float eps, cudaStream_t s) {
     const int rows_per_block = kLayerNormV1Threads / 32;
