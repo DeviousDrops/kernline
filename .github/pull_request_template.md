@@ -11,6 +11,8 @@
 |  |  |  |  |  |  |  |  |  |  |
 
 ## Reviewer checklist
+- [ ] Branch matches the planned branches in `docs/DESIGN.md` → *Workflow*, or the description explains the change
+- [ ] Roughly ≥ 4 meaningful commits (kernel/feature PRs), none of them padding
 - [ ] Builds and tests pass on the reviewer's GPU
 - [ ] Benchmarks reproduced on the reviewer's GPU
 - [ ] Frozen interfaces unchanged (or `docs/DESIGN.md` updated)
