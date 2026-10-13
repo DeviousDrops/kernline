@@ -7,10 +7,10 @@ KernLine is hand-written CUDA C++ for the four kernels behind a transformer laye
 ## Team & hardware
 | Part | Focus | GPU |
 |---|---|---|
-| A | GEMM (naive → register tiling → WMMA), performance model | RTX 4070 (Ada, `sm_89`) |
+| A | GEMM (naive → register tiling → WMMA), performance model | RTX 4070 Laptop (Ada, `sm_89`, 36 SMs, 8 GB) |
 | B | softmax, LayerNorm, attention (naive → optimized unfused), cache simulator, tooling | RTX 4060 Laptop (Ada, `sm_89`, 24 SMs, 8 GB) |
 
-Both GPUs are the same architecture with different SM counts, bandwidth, and L2. That makes the second GPU a clean held-out test for the model. Details are in [`docs/DESIGN.md`](docs/DESIGN.md). Per-person plans: [`docs/PLAN-A.md`](docs/PLAN-A.md) and [`docs/PLAN-B.md`](docs/PLAN-B.md).
+Both are Ada laptop GPUs with the same memory system (128-bit GDDR6, ~256 GB/s, 32 MB L2) but different SM counts (36 vs 24): compute-bound kernels should scale with SMs, memory-bound ones should not. That makes the second GPU a clean held-out test for the model. Details are in [`docs/DESIGN.md`](docs/DESIGN.md). Per-person plans: [`docs/PLAN-A.md`](docs/PLAN-A.md) and [`docs/PLAN-B.md`](docs/PLAN-B.md).
 
 ## Phases
 1. **Naive baseline.** Plain CUDA kernels, checked against PyTorch, profiled for FLOP/s, bandwidth, and occupancy.
@@ -19,7 +19,7 @@ Both GPUs are the same architecture with different SM counts, bandwidth, and L2.
    - Softmax/LayerNorm: warp-shuffle reductions and single-pass algorithms (online softmax, Welford).
    - Attention: QKᵀ → softmax → ·V built from the optimized GEMM and softmax kernels, with the scale fused into the QKᵀ epilogue. The N×N score matrix is still materialized, and measuring that traffic is the point.
    - Each step goes on the roofline with a one-sentence explanation of why it moved.
-3. **Analytical performance model.** Tiered (roofline → + occupancy & waves → + latency hiding). It is tuned on the 4070, predicts the 4060 Laptop, and reports error per tier.
+3. **Analytical performance model.** Tiered (roofline → + occupancy & waves → + latency hiding). It is tuned on the 4070 Laptop, predicts the 4060 Laptop, and reports error per tier.
 4. **End-to-end transformer block.** GPT-2-small shapes: measured time vs the sum of predictions vs PyTorch.
 5. **Cache simulator (stretch).** CPU address replay of kernel access patterns into an L1/L2 model, cross-checked against ncu hit rates.
 
@@ -48,7 +48,7 @@ pytest tests/                                        # every variant vs PyTorch
 ./build/bench gemm v3 4096 4096 4096                 # CSV row: time, FLOP, bytes, clocks
 tools/profile.sh gemm v3 4096 4096 4096              # Nsight Compute report + metrics CSV
 python analysis/roofline.py                          # regenerate all plots from results/
-python -m model predict --kernel gemm --variant v3 --dims 4096,4096,4096 --gpu rtx4070
+python -m model predict --kernel gemm --variant v3 --dims 4096,4096,4096 --gpu rtx4070_laptop
 ```
 
 ## Repo layout

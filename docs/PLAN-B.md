@@ -3,7 +3,7 @@
 **Read `docs/DESIGN.md` first.**
 
 ## Your role
-You own softmax, LayerNorm, attention (naive unfused → optimized unfused), the shared test/profiling tooling, and the cache simulator. Part A (RTX 4070) owns GEMM and the performance model. Your 4060 Laptop measurements are the model's held-out test set (D1), so never hand-tune the model against them.
+You own softmax, LayerNorm, attention (naive unfused → optimized unfused), the shared test/profiling tooling, and the cache simulator. Part A (RTX 4070 Laptop) owns GEMM and the performance model. Your 4060 Laptop measurements are the model's held-out test set (D1), so never hand-tune the model against them.
 
 ## Weekly tasks
 | Week | Tasks |
@@ -15,7 +15,7 @@ You own softmax, LayerNorm, attention (naive unfused → optimized unfused), the
 | 5 | attention v1 optimized unfused: batched (B×H) tiled QKᵀ using A's best GEMM with the 1/√d scale fused into its epilogue → softmax v2 in place on S → tiled P·V. It still materializes N×N. Compare vs the PyTorch math path (`sdpa_kernel(SDPBackend.MATH)`), which is also unfused. Sweep sequence length and use ncu DRAM bytes to show the N×N traffic dominating as N grows. |
 | 6 | Model descriptors for softmax/LN/attention. Run the full bench + ncu suite on the 4060 Laptop, including A's GEMMs (D8). |
 | 7 | Hand the held-out results to A. Write the "why attention is memory-bound" analysis (arithmetic intensity vs sequence length, crossover point on each GPU). |
-| 8 | `sim/` (C++): address-replay trace generator (D5) + set-associative L1 per SM (128 B lines, 32 B sectors, LRU) + shared L2 (32 MB on 4060 Laptop, 36 MB on 4070). Hit rate vs tile size for GEMM v0/v2/v3 and attention v0/v1. Cross-check with ncu hit rates and report the gap. |
+| 8 | `sim/` (C++): address-replay trace generator (D5) + set-associative L1 per SM (128 B lines, 32 B sectors, LRU) + shared L2 (32 MB on both GPUs). Hit rate vs tile size for GEMM v0/v2/v3 and attention v0/v1. Cross-check with ncu hit rates and report the gap. |
 
 ## Definition of done per step
 Correctness test passes → CSV row in `results/rtx4060_laptop/` → ncu report → one-sentence roofline explanation in the PR.
