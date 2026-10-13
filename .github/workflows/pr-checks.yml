@@ -1,0 +1,48 @@
+name: pr-checks
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  no-attribution:
+    name: no-attribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Commit messages carry no co-author or tool attribution lines
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bad=$(git log --format='%h %B' "$BASE..$HEAD" | grep -inE 'co-authored-by:|generated with \[' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Remove attribution lines from these commits (git commit --amend, or git rebase to reword older ones):"
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: PR description carries no tool attribution lines
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if printf '%s' "$BODY" | grep -iqE 'co-authored-by:|generated with \['; then
+            echo "::error::Remove the attribution line from the PR description."
+            exit 1
+          fi
+
+  branch-name:
+    name: branch-name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch follows the naming in docs/DESIGN.md
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if ! printf '%s' "$BRANCH" | grep -qE '^((a|b|docs|ci)/[a-z0-9][a-z0-9._-]*|results)$'; then
+            echo "::error::Branch '$BRANCH' should be a/<work>, b/<work>, docs/<topic>, ci/<topic>, or results (see Workflow in docs/DESIGN.md)."
+            exit 1
+          fi
