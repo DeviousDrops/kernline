@@ -42,12 +42,14 @@ static const struct { const char* variant; GemmFn fn; bool fp16_in = false; } kG
 typedef int (*SoftmaxFn)(const float*, float*, int, int, cudaStream_t);
 static const struct { const char* variant; SoftmaxFn fn; } kSoftmax[] = {
     {"v0", softmax_v0},
+    {"v1", softmax_v1},
 };
 
 typedef int (*LayerNormFn)(const float*, const float*, const float*, float*, int, int, float,
                            cudaStream_t);
 static const struct { const char* variant; LayerNormFn fn; } kLayerNorm[] = {
     {"v0", layernorm_v0},
+    {"v1", layernorm_v1},
 };
 
 template <class Table>

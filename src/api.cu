@@ -1,6 +1,7 @@
 #include "src/api.h"
 #include <cstdint>
 #include <cublas_v2.h>
+#include "common/warp_reduce.cuh"
 #include "kernels/gemm/gemm.h"
 #include "kernels/layernorm/layernorm.h"
 #include "kernels/softmax/softmax.h"
@@ -77,5 +78,28 @@ extern "C" int layernorm_v0(const float* x, const float* gamma, const float* bet
     const int block = 128;
     layernorm_v0_kernel<<<(rows + block - 1) / block, block, 0, s>>>(x, gamma, beta, y, rows,
                                                                       cols, eps);
+    return cudaGetLastError();
+}
+
+extern "C" int softmax_v1(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int rows_per_block = kSoftmaxV1Threads / 32;
+    const int grid = (rows + rows_per_block - 1) / rows_per_block;
+    if (rows_vectorizable(cols, x, y))
+        softmax_v1_kernel<<<grid, kSoftmaxV1Threads, 0, s>>>(x, y, rows, cols);
+    else
+        softmax_v1_scalar_kernel<<<grid, kSoftmaxV1Threads, 0, s>>>(x, y, rows, cols);
+    return cudaGetLastError();
+}
+
+extern "C" int layernorm_v1(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int rows_per_block = kLayerNormV1Threads / 32;
+    const int grid = (rows + rows_per_block - 1) / rows_per_block;
+    if (rows_vectorizable(cols, x, gamma, beta, y))
+        layernorm_v1_kernel<<<grid, kLayerNormV1Threads, 0, s>>>(x, gamma, beta, y, rows, cols,
+                                                                  eps);
+    else
+        layernorm_v1_scalar_kernel<<<grid, kLayerNormV1Threads, 0, s>>>(x, gamma, beta, y, rows,
+                                                                         cols, eps);
     return cudaGetLastError();
 }
