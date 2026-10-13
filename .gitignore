@@ -1,0 +1,10 @@
+build/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.ncu-rep
+!results/**/*.ncu-rep
+*.o
+*.so
+tools/smoke/vadd
