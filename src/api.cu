@@ -110,6 +110,42 @@ extern "C" int layernorm_v2(const float* x, const float* gamma, const float* bet
     return layernorm_v2_launch(k, x, gamma, beta, y, rows, cols, eps, s);
 }
 
+// v3 launch shape for a row of `cols` floats: about 4 float4 per thread, 128..1024 threads, and
+// the row's bytes of dynamic shared memory. Returns false if the row does not fit in the
+// per-block opt-in shared memory (minus the 128 bytes of static reduction scratch).
+static bool v3_shape(int cols, int* threads, size_t* smem) {
+    static int optin = -1;
+    if (optin < 0) {
+        int dev = 0;
+        cudaGetDevice(&dev);
+        cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+    }
+    *smem = (size_t)cols * sizeof(float);
+    if (*smem + 32 * sizeof(float) > (size_t)optin) return false;
+    const int want = ((cols + 15) / 16 + 31) / 32 * 32;
+    *threads = want < 128 ? 128 : want > 1024 ? 1024 : want;
+    return true;
+}
+
+extern "C" int softmax_v3(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const bool vec = rows_vectorizable(cols, x, y);
+    int threads;
+    size_t smem;
+    if (!v3_shape(cols, &threads, &smem))
+        return softmax_v2_launch(vec ? 0 : -1, x, y, rows, cols, s);
+    return softmax_v3_launch(vec, threads, smem, x, y, rows, cols, s);
+}
+
+extern "C" int layernorm_v3(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const bool vec = rows_vectorizable(cols, x, gamma, beta, y);
+    int threads;
+    size_t smem;
+    if (!v3_shape(cols, &threads, &smem))
+        return layernorm_v2_launch(vec ? 0 : -1, x, gamma, beta, y, rows, cols, eps, s);
+    return layernorm_v3_launch(vec, threads, smem, x, gamma, beta, y, rows, cols, eps, s);
+}
+
 extern "C" int layernorm_v1(const float* x, const float* gamma, const float* beta, float* y,
                             int rows, int cols, float eps, cudaStream_t s) {
     const int rows_per_block = kLayerNormV1Threads / 32;

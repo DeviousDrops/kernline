@@ -44,6 +44,7 @@ static const struct { const char* variant; SoftmaxFn fn; } kSoftmax[] = {
     {"v0", softmax_v0},
     {"v1", softmax_v1},
     {"v2", softmax_v2},
+    {"v3", softmax_v3},
 };
 
 typedef int (*LayerNormFn)(const float*, const float*, const float*, float*, int, int, float,
@@ -52,6 +53,7 @@ static const struct { const char* variant; LayerNormFn fn; } kLayerNorm[] = {
     {"v0", layernorm_v0},
     {"v1", layernorm_v1},
     {"v2", layernorm_v2},
+    {"v3", layernorm_v3},
 };
 
 template <class Table>

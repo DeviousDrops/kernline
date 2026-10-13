@@ -21,3 +21,10 @@ const int kLayerNormV2Threads = 256;  // 8 warps = 8 rows per block
 // 0 = float4 Welford two-pass; -1 = scalar Welford two-pass.
 cudaError_t layernorm_v2_launch(int k, const float* x, const float* gamma, const float* beta,
                                 float* y, int rows, int cols, float eps, cudaStream_t s);
+
+// v3: one block of `threads` per row, the row in `smem` bytes of dynamic shared memory (>= cols·4).
+// vec = float4 loads (rows_vectorizable). The launcher (src/api.cu) picks threads and smem and
+// falls back to v2 streaming for rows that don't fit.
+cudaError_t layernorm_v3_launch(bool vec, int threads, size_t smem, const float* x,
+                                const float* gamma, const float* beta, float* y, int rows, int cols,
+                                float eps, cudaStream_t s);

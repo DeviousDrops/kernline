@@ -7,15 +7,17 @@ from harness import launch
 
 pytestmark = pytest.mark.gpu
 
-SOFTMAX_VARIANTS = ["v0", "v1", "v2"]
-LAYERNORM_VARIANTS = ["v0", "v1", "v2"]
+SOFTMAX_VARIANTS = ["v0", "v1", "v2", "v3"]
+LAYERNORM_VARIANTS = ["v0", "v1", "v2", "v3"]
 
 # (rows, cols): degenerate, odd sizes no warp/vector width divides, and transformer shapes
 # (attention-score rows of length 1024, hidden size 768). The tail exercises every v2 path:
 # register caches of 1, 2, 4 and 16 float4 per lane (cols 4, 132, 500, 2048), rows that leave
 # some lanes empty, the float4 streamed path past 2048 (2052, 16384), and scalar streaming (4099).
+# For v3: the largest row that fits 99 KB of shared memory (24572) and one that falls back (30000).
 SHAPES = [(1, 1), (1, 37), (33, 1), (7, 33), (257, 129), (100, 300), (384, 1024), (512, 768),
-          (9, 4), (9, 132), (9, 500), (17, 2048), (9, 2052), (8, 16384), (5, 4099)]
+          (9, 4), (9, 132), (9, 500), (17, 2048), (9, 2052), (8, 16384), (5, 4099),
+          (3, 24572), (3, 30000)]
 
 # Outputs are O(1/cols) for softmax, so an absolute tolerance of 1e-3 would accept garbage.
 SOFTMAX_TOL = dict(rtol=1e-5, atol=1e-7)

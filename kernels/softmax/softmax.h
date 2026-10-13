@@ -16,3 +16,9 @@ const int kSoftmaxV2Threads = 256;  // 8 warps = 8 rows per block
 // in registers (rows of up to 128·k floats, one DRAM read) for k in {1, 2, 4, 8, 16};
 // 0 = float4 online two-pass; -1 = scalar online two-pass.
 cudaError_t softmax_v2_launch(int k, const float* x, float* y, int rows, int cols, cudaStream_t s);
+
+// v3: one block of `threads` per row, the row in `smem` bytes of dynamic shared memory (>= cols·4).
+// vec = float4 loads (rows_vectorizable). The launcher (src/api.cu) picks threads and smem and
+// falls back to v2 streaming for rows that don't fit.
+cudaError_t softmax_v3_launch(bool vec, int threads, size_t smem, const float* x, float* y,
+                              int rows, int cols, cudaStream_t s);
