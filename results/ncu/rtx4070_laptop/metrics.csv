@@ -1,0 +1,7 @@
+gpu,kernel,variant,dims,kernels_in_report,gpu_time_ms,dram_read_bytes,dram_write_bytes,sm_throughput_pct,achieved_occ_pct,l1_hit_pct,l2_hit_pct,smem_bank_conflicts,regs_per_thread,smem_per_block_bytes,block_size,grid_size,top_stall,top_stall_cycles
+rtx4070_laptop,gemm,v0,1024x1024x1024,1,12.32,9413504,4660480,23.1,98.02,97.05,94.41,0,40,1024,256,4096,lg_throttle,6.773e+05
+rtx4070_laptop,gemm,cublas,1024x1024x1024,1,0.3238,8475136,4200960,72.71,31.98,13.27,96.13,229376,122,13568,128,896,not_selected,1.882e+04
+rtx4070_laptop,gemm,v0,2048x2048x2048,1,98.36,285291520,24568960,23.26,99.48,96.99,92.82,0,40,1024,256,16384,lg_throttle,1379393
+rtx4070_laptop,gemm,cublas,2048x2048x2048,1,2.3,58831744,37808896,72.13,32.52,12.32,95.22,393216,122,13568,128,1536,not_selected,9.314e+04
+rtx4070_laptop,gemm,v0,4096x4096x4096,1,779.1,19597236864,89600768,23.48,91.35,86.57,87.78,0,40,1024,256,65536,long_scoreboard,2356981
+rtx4070_laptop,gemm,cublas,4096x4096x4096,1,17.79,393266688,78379648,74.47,32.75,0.04,94.91,524288,122,13568,128,2048,not_selected,5.701e+05
