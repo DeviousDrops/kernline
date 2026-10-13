@@ -1,14 +1,30 @@
-# KernLine — Part A: compute side + performance model (RTX 4070 Laptop)
+# KernLine — Part A (Arjun): compute side + performance model (RTX 4070 Laptop)
 
 Self-contained plan for Part A. **Read `docs/DESIGN.md` first.** It holds the design decisions (D1–D10), the environment setup, the repo layout, and the frozen interfaces.
 
 ## Your role
 You own GEMM (naive → tensor cores) and the analytical performance model. Part B (RTX 4060 Laptop) owns softmax, LayerNorm, attention, and the cache simulator, and has already created the repo, docs, test harness, and ceiling microbenchmarks. The model is **tuned on your 4070 Laptop only**. B's 4060 Laptop data is the held-out test (D1).
 
+## Your machine
+| | |
+|---|---|
+| GPU | NVIDIA GeForce RTX 4070 Laptop GPU (AD106, `sm_89`, 36 SMs, 8188 MiB) |
+| Max clocks (`nvidia-smi`) | SM 3105 MHz, memory 8001 MHz |
+| OS | CachyOS (Arch-based), **native Linux, not WSL**, kernel 7.2.9-2-cachyos |
+| Driver | `nvidia-utils` 615.78.08 |
+| Toolchain | `cuda` 13.4.2 (nvcc in `/opt/cuda/bin`), `nsight-compute` 2026.3.1 (`ncu`), cmake 4.4.4, ninja, uv |
+
 ## Day 1
-1. Follow *Environment* in `DESIGN.md` on your machine. Clone the repo into `~/kernline`.
-2. Run `tools/smoke/run.sh` and confirm `ncu` reads counters.
-3. Record `nvidia-smi --query-gpu=name,compute_cap,memory.total,clocks.max.sm,clocks.max.mem --format=csv` in `specs/rtx4070_laptop.json`. Then run `tools/ceilings/` once B has pushed it.
+1. The toolchain is already installed natively, so skip `tools/setup_arch.sh` and the Windows steps in `DESIGN.md` → *Environment*. Missing packages come from `pacman -S cuda nsight-compute cmake ninja uv`.
+2. Allow non-root access to the GPU performance counters (the native-Linux equivalent of the Windows control-panel step). By default the driver reports `RmProfilingAdminOnly: 1` and `ncu` fails with `ERR_NVGPUCTRPERM`:
+   ```sh
+   echo 'options nvidia NVreg_RestrictProfilingToAdminUsers=0' | sudo tee /etc/modprobe.d/nvidia-profiling.conf
+   sudo limine-mkinitcpio   # the nvidia modules load from the initramfs, so it must be rebuilt
+   # reboot, then: grep Profiling /proc/driver/nvidia/params   → RmProfilingAdminOnly: 0
+   ```
+3. Run `tools/smoke/run.sh` and confirm it prints `PASS` and `ncu` reads counters.
+4. `uv venv && uv pip install torch numpy pandas matplotlib pytest`.
+5. Record `nvidia-smi --query-gpu=name,compute_cap,memory.total,clocks.max.sm,clocks.max.mem --format=csv` in `specs/rtx4070_laptop.json`. Then run `tools/ceilings/` once B has pushed it.
 
 ## Weekly tasks
 | Week | Branch | Tasks |
