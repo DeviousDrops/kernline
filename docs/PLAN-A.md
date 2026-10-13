@@ -11,22 +11,21 @@ You own GEMM (naive → tensor cores) and the analytical performance model. Part
 3. Record `nvidia-smi --query-gpu=name,compute_cap,memory.total,clocks.max.sm,clocks.max.mem --format=csv` in `specs/rtx4070_laptop.json`. Then run `tools/ceilings/` once B has pushed it.
 
 ## Weekly tasks
-| Week | Tasks |
-|---|---|
-| 1 | Build scaffold: `CMakeLists.txt`, `common/` (cuda_check, cudaEvent timer, gpu_info → CSV), `src/api.cu`, `bench/bench.cu` emitting the frozen CSV schema. |
-| 2 | GEMM v0 naive (one thread per C element, uncoalesced on purpose). Tests vs `torch.matmul`. cuBLAS baseline in bench. |
-| 3 | GEMM v1 coalesced (thread→column mapping), v2 shared-memory tiling (32×32). Expect ncu to show DRAM bytes dropping, then the kernel becoming shared-memory bound. |
-| 4 | GEMM v3 register tiling (2D thread tile, e.g. 8×8, BM=BN=128, BK=8, float4 loads, transposed/padded A tile against bank conflicts). Target ≥ 60% of measured FP32 peak. |
-| 5 | GEMM v4 WMMA FP16-in/FP32-acc (stretch). `block/block.cu` skeleton wiring your GEMMs with B's kernels (D4). |
-| 6 | `model/`: spec loader, occupancy calculator (regs, smem, warps, blocks/SM. Check against ncu "theoretical occupancy"), waves/tail effect, tiers T0/T1/T2 (D2). GEMM descriptors. CLI `python -m model predict` / `validate`. |
-| 7 | Tune on 4070 Laptop data only. Freeze, then predict the 4060 Laptop from B's results. Error tables per tier × kernel × GPU, scatter plots, written failure analysis (latency at small sizes, bank conflicts, L2 reuse, clock variance, launch overhead). Block-level prediction vs measured. |
-| 8 | Support B's simulator: document GEMM v0/v2/v3 index math for address replay (D5). README assembly with B. |
+| Week | Branch | Tasks |
+|---|---|---|
+| 1 | `a/scaffold` | `CMakeLists.txt`, `common/` (cuda_check, cudaEvent timer, gpu_info → CSV), `src/api.cu`, `bench/bench.cu` emitting the frozen CSV schema, **GEMM v0** naive (one thread per C element, uncoalesced on purpose) + test vs `torch.matmul` + cuBLAS baseline. Open the PR. B needs it merged (Gate 1) to start attention. |
+| 2–3 | `a/gemm` | GEMM v1 coalesced (thread→column mapping), v2 shared-memory tiling (32×32). Expect ncu to show DRAM bytes dropping, then the kernel becoming shared-memory bound. Review B's `b/tooling`. |
+| 4 | `a/gemm` | GEMM v3 register tiling (2D thread tile, e.g. 8×8, BM=BN=128, BK=8, float4 loads, transposed/padded A tile against bank conflicts). Target ≥ 60% of measured FP32 peak. Open the PR once v3 is solid, because B's attention v1 waits on it. |
+| 5 | `a/gemm` → `a/model` | GEMM v4 WMMA FP16-in/FP32-acc (stretch: a follow-up commit or small PR, don't block on it). Start `a/model`: spec loader, occupancy calculator (regs, smem, warps, blocks/SM; check against ncu "theoretical occupancy"). |
+| 6 | `a/model` | Waves/tail effect, tiers T0/T1/T2 (D2), GEMM descriptors, CLI `python -m model predict` / `validate`. `block/block.cu` transformer-block runner (D4). Full bench suite on the 4070 Laptop incl. B's kernels (D8). |
+| 7 | `a/model` | Tune on 4070 Laptop data only. Freeze, then predict the 4060 Laptop from B's `b/model-inputs` data. Error tables per tier × kernel × GPU, scatter plots, written failure analysis (latency at small sizes, bank conflicts, L2 reuse, clock variance, launch overhead). Block-level prediction vs measured. Open the PR (Gate 3). |
+| 8 | `results` | Review B's `b/sim` (especially that its GEMM address replay matches your kernels' index math). Open the `results` PR assembling the README with B. |
 
 ## Branches and PRs
-One branch and one PR per phase: `a/phase1-baseline` (weeks 1–2), `a/phase2-optimize` (3–5), `a/phase3-model` (6–7), `a/phase4-sim` (8). B reviews and merges. You review B's `b/phase*` PRs (procedure in `DESIGN.md` → *Reviewing a PR*). B's attention depends on your GEMM, so land GEMM work early in each phase.
+Follow *Workflow* in `DESIGN.md`. Your default branches are `a/scaffold`, `a/gemm`, `a/model`, and `results`. Aim for at least ~4 real commits per PR, and send plan changes as small `docs/<topic>` PRs. B reviews and merges yours. You review B's (`b/tooling`, `b/reductions`, `b/attention`, `b/model-inputs`, `b/sim`, and any `docs/*`) per *Reviewing a PR*. Respect the gates: don't open optimization PRs before Gate 1, and don't open `a/model` before Gate 2 and `b/model-inputs`.
 
 ## Definition of done per variant (one commit each)
-Correctness test passes (including sizes not divisible by the tile) → CSV row in `results/rtx4070_laptop/` → ncu report → one-sentence roofline explanation, collected into the phase PR's table.
+Correctness test passes (including sizes not divisible by the tile) → CSV row in `results/rtx4070_laptop/` → ncu report → one-sentence roofline explanation, collected into the PR's table.
 
 ## Verification
 - `cmake -B build -G Ninja && cmake --build build`

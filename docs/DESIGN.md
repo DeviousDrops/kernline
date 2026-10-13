@@ -60,22 +60,37 @@ results/<gpu>/*.csv   committed measurements
 - **Model kernel descriptor** (`model/kernels/<kernel>.py`): `flops(dims)`, `bytes(dims, variant)`, `launch_cfg(dims, variant)`, `resources(variant)` (regs/smem from `nvcc --resource-usage`).
 
 ## Workflow
-- **One branch and one PR per person per phase.** Nobody pushes to `main`. Commit each kernel variant separately inside the phase branch, but open a single PR when the phase is done.
+Nobody pushes to `main`. Work happens on **branches cut around real units of work**: one coherent, reviewable chunk that someone else can build, test, and reason about as a whole. That means neither one branch per kernel variant nor one per calendar phase. That gives roughly ten PRs over the project.
 
-  | Phase | Weeks | Part A branch | Part B branch |
-  |---|---|---|---|
-  | 1 Baseline: scaffold, tooling, v0 kernels | 1–2 | `a/phase1-baseline` | `b/phase1-baseline` |
-  | 2 Optimize: all variants + roofline evidence | 3–5 | `a/phase2-optimize` | `b/phase2-optimize` |
-  | 3 Model + transformer block | 6–7 | `a/phase3-model` | `b/phase3-model` |
-  | 4 Cache simulator | 8 | `a/phase4-sim` (index math only) | `b/phase4-sim` |
+### Planned branches
+| # | Branch | Owner | Contents (each bullet ≈ one or more commits) | Weeks | Start after | Merge before |
+|---|---|---|---|---|---|---|
+| 1 | `docs/setup` | B | workflow, PR template, `.gitignore` | 1 | — | anything else |
+| 2 | `a/scaffold` | A | CMake · `common/` · C ABI in `src/api.cu` · bench CLI + CSV · GEMM v0 + cuBLAS baseline + test | 1 | #1 | **Gate 1** |
+| 3 | `b/tooling` | B | ctypes/pytest harness · `tools/profile.sh` · ceiling microbenchmarks · `specs/rtx4060_laptop.json` · `analysis/roofline.py` | 1 | #1 | **Gate 1** |
+| 4 | `a/gemm` | A | GEMM v1 coalesced · v2 smem tiling · v3 register tiling · v4 WMMA (stretch) · results + ncu per variant | 2–5 | Gate 1 | **Gate 2** |
+| 5 | `b/reductions` | B | softmax v0 · v1 · v2, LayerNorm v0 · v1 · v2 · results + ncu per variant | 2–4 | Gate 1 | **Gate 2** |
+| 6 | `b/attention` | B | attention v0 (unfused, GEMM v0) · v1 (best GEMM + fused scale + softmax v2) · sequence-length sweep · memory-bound analysis | 2–5 | Gate 1 (rebase on #4, #5 before opening the PR) | **Gate 2** |
+| 7 | `b/model-inputs` | B | model descriptors for softmax/LN/attention · full bench + ncu suite on the 4060 Laptop incl. A's GEMMs (held-out data) | 6 | Gate 2 | **Gate 3** |
+| 8 | `a/model` | A | spec loader · occupancy calc · T0/T1/T2 tiers · GEMM descriptors · 4070 tuning + full suite · transformer-block runner · held-out validation | 5–7 | Gate 1 (open PR after #7) | **Gate 3** |
+| 9 | `b/sim` | B | address-replay generator · L1 · L2 · tiling experiments · ncu cross-check | 7–8 | Gate 2 | final PR |
+| 10 | `results` | A opens, both commit | README tables, plots, "who did what" | 8 | Gate 3 (+ #9 if done) | — |
 
-- Cut each phase branch from an up-to-date `main` when the phase starts (`git switch main && git pull && git switch -c b/phase2-optimize`).
-- Optional: open the PR as a **draft** early (`gh pr create --draft`), so the partner can comment while you work. Mark it ready when the phase is done.
-- **Cross-dependencies:** B's attention needs A's GEMM (v0 in phase 1, best variant in phase 2). A merges their phase PR first, or at least the GEMM commits. B then runs `git rebase main` and finishes attention.
+**Gates (what must be merged before moving on):**
+- **Gate 1** (#2 + #3): the build system, launcher ABI, CSV schema, and test harness exist on `main`. No kernel-optimization branch opens a PR before this.
+- **Gate 2** (#4 + #5 + #6): every kernel variant is final. After this, kernels only change for bug fixes, so the model and the simulator measure something stable.
+- **Gate 3** (#7 + #8): model validated on both GPUs. The `results` PR is written against this.
+
+### Rules
+- **At least ~4 meaningful commits before opening a PR** (e.g. one per kernel variant, plus results/tests). This is a guideline, not a quota. Never pad with trivial commits, and if a branch is getting huge (> ~1500 changed lines excluding results CSVs), split it.
+- **Plan changes are welcome as their own small PR** (`docs/<topic>`, e.g. `docs/drop-wmma`). Batch related doc edits into one PR instead of opening several, and fold a doc change into the feature branch when it only concerns that feature. These are exempt from the 4-commit guideline.
+- **Branches above are the default, not a contract.** Rename, merge, or split them when the work changes shape. Record that in a `docs/` PR, or note it in the affected PR's description.
+- Cut each branch from an up-to-date `main` (`git switch main && git pull && git switch -c b/reductions`). Before opening the PR, `git rebase main`.
+- Optional: open a **draft PR** early (`gh pr create --draft`) on long branches (#4, #6, #8), so the partner can comment along the way.
 - **The other person reviews and merges.** Authors never merge their own PRs. That review is how both learn both halves.
-- Each phase PR fills in `.github/pull_request_template.md`. For every variant it needs a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
+- Merge with a **merge commit** (`gh pr merge --merge`), not squash, so each kernel variant stays a separate commit on `main` that the README can link to.
+- Kernel PRs fill in `.github/pull_request_template.md`. Each variant needs a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
 - Commits, PR descriptions, and review comments contain no AI/tool attribution lines (no `Co-Authored-By` trailers, no "generated with" footers).
-- Weekly sync: merge both GPUs' results and regenerate the plots.
 
 ### Reviewing a PR
 1. Check out the branch: `gh pr checkout <n>`.
@@ -83,6 +98,6 @@ results/<gpu>/*.csv   committed measurements
 3. Re-run the PR's benchmark row on your GPU and check that the numbers and the roofline sentence are plausible (the ncu metric actually supports the claim).
 4. Check the frozen interfaces (launcher signature, CSV schema, metric list) are unchanged, or changed together with `docs/DESIGN.md`.
 5. Decide:
-   - **Good:** `gh pr review <n> --approve`, then `gh pr merge <n> --squash --delete-branch`.
+   - **Good:** `gh pr review <n> --approve`, then `gh pr merge <n> --merge --delete-branch`.
    - **Needs changes:** `gh pr review <n> --request-changes -b "<what and why>"`, plus inline comments on specific lines (`gh api repos/{owner}/{repo}/pulls/<n>/comments`). The author pushes fixes to the same branch and re-requests review.
    - **Small question, not blocking:** `gh pr review <n> --comment -b "..."`.
