@@ -17,15 +17,15 @@ Both GPUs are Ada (`sm_89`) with different SM counts, bandwidth, and L2. The sec
 | # | Decision | Why |
 |---|---|---|
 | D1 | **Two-GPU held-out validation.** Build and tune the model with 4070 data only, then predict the 4060 Laptop with **no refitting**. | Turns "model error" into "does the model generalize across SKUs?", which is what architecture teams actually do. |
-| D2 | **Tiered model.** T0 pure roofline → T1 + occupancy & wave quantization (tail effect on 24 vs 46 SMs) → T2 + latency hiding via Little's law (bytes in flight needed = BW × mem latency, vs bytes in flight the occupancy provides) + launch overhead. Report error per tier. | Shows *which* effect explains *which* error. |
+| D2 | **Tiered model.** T0 pure roofline → T1 + occupancy & wave quantization (tail effect on 24 vs 46 SMs) → T2 + latency hiding via Little's law (bytes in flight needed = BW × mem latency, vs bytes in flight the occupancy provides) + launch overhead forced to the math (unfused) backend. Report error per tier. | Shows *which* effect explains *which* error. |
 | D3 | **Measured ceilings, not datasheet.** `tools/ceilings/` microbenchmarks (stream copy, FMA loop, smem bandwidth, mma loop, pointer-chase latency) per GPU, stored as `specs/<gpu>.json`. | Laptop clocks vary. Pointer-chase latency feeds T2. |
 | D4 | **End-to-end transformer block:** LN → QKV GEMM → attention → out-proj GEMM → residual → LN → MLP GEMMs, GPT-2-small shapes (d=768, heads=12, seq 512–2048, batch 1–8). Compare measured block time vs the sum of model predictions vs PyTorch eager. | Shows where time goes in a real layer. |
 | D5 | **Cache sim uses CPU address replay**, not GPU instrumentation. Re-execute each kernel's index math on the CPU to emit (SM, warp, addr, r/w) traces. Validate against ncu `l1tex__t_sector_hit_rate` / `lts__t_sector_hit_rate`. | GPU tracing tools are unreliable on WSL2. Replay is deterministic, and the ncu cross-check keeps it honest. |
 | D6 | **Kernel launchers behind a stable C ABI** (`extern "C"` in `src/api.cu` → `libkernels.so`). Tests use ctypes + torch `data_ptr()`. Bench is a C++ CLI emitting CSV. | No pybind/torch-extension build coupling. |
 | D7 | **Every result row carries GPU name + clocks.** ncu runs keep its default `--clock-control base`. | Results from two machines merge without ambiguity. |
 | D8 | **Cross-running:** each person runs the *full* bench + ncu suite on their own GPU, including the partner's kernels. | Every plot has two GPUs. |
-| D9 | **Baselines:** cuBLAS / `torch.matmul`, `F.softmax`, `F.layer_norm`, `F.scaled_dot_product_attention`. Report "% of baseline" next to "% of peak". | "% of peak" alone flatters naive memory-bound kernels. |
-| D10 | **Dtype:** FP32 for all main variants. FP16-in/FP32-acc only for WMMA GEMM and a stretch tensor-core flash variant. Non-causal attention first. | Simple tolerances, apples-to-apples comparisons. |
+| D9 | **Baselines:** cuBLAS / `torch.matmul`, `F.softmax`, `F.layer_norm`, `F.scaled_dot_product_attention` forced to the math (unfused) backend. Report "% of baseline" next to "% of peak". | "% of peak" alone flatters naive memory-bound kernels. |
+| D10 | **Dtype:** FP32 for all main variants. FP16-in/FP32-acc only for WMMA GEMM. Non-causal attention first. Attention stays **unfused** (no FlashAttention): QKᵀ → softmax → ·V reuses the GEMM and softmax kernels. | Simple tolerances, apples-to-apples comparisons. |
 
 ## Environment (each machine)
 1. **Windows:** update the NVIDIA driver to the latest (≥ 580 for CUDA 13, which Arch ships). NVIDIA Control Panel → Desktop → *Enable Developer Settings*, then Developer → *Manage GPU Performance Counters* → **Allow access to the GPU performance counters to all users**. Run `wsl --shutdown`.

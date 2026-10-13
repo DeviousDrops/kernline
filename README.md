@@ -8,7 +8,7 @@ KernLine is hand-written CUDA C++ for the four kernels behind a transformer laye
 | Part | Focus | GPU |
 |---|---|---|
 | A | GEMM (naive → register tiling → WMMA), performance model | RTX 4070 (Ada, `sm_89`) |
-| B | softmax, LayerNorm, attention (unfused → FlashAttention-style), cache simulator, tooling | RTX 4060 Laptop (Ada, `sm_89`, 24 SMs, 8 GB) |
+| B | softmax, LayerNorm, attention (naive → optimized unfused), cache simulator, tooling | RTX 4060 Laptop (Ada, `sm_89`, 24 SMs, 8 GB) |
 
 Both GPUs are the same architecture with different SM counts, bandwidth, and L2. That makes the second GPU a clean held-out test for the model. Details are in [`docs/DESIGN.md`](docs/DESIGN.md). Per-person plans: [`docs/PLAN-A.md`](docs/PLAN-A.md) and [`docs/PLAN-B.md`](docs/PLAN-B.md).
 
@@ -17,7 +17,7 @@ Both GPUs are the same architecture with different SM counts, bandwidth, and L2.
 2. **Optimize with evidence.**
    - GEMM: coalescing → shared-memory tiling → register tiling → tensor cores (WMMA).
    - Softmax/LayerNorm: warp-shuffle reductions and single-pass algorithms (online softmax, Welford).
-   - Attention: a fused, tiled FlashAttention-style kernel that never materializes the N×N matrix.
+   - Attention: QKᵀ → softmax → ·V built from the optimized GEMM and softmax kernels, with the scale fused into the QKᵀ epilogue. The N×N score matrix is still materialized, and measuring that traffic is the point.
    - Each step goes on the roofline with a one-sentence explanation of why it moved.
 3. **Analytical performance model.** Tiered (roofline → + occupancy & waves → + latency hiding). It is tuned on the 4070, predicts the 4060 Laptop, and reports error per tier.
 4. **End-to-end transformer block.** GPT-2-small shapes: measured time vs the sum of predictions vs PyTorch.
@@ -80,7 +80,7 @@ docs/            design + per-person plans
 *TBD: before/after table (time, GB/s, % of DRAM peak, % of PyTorch) for v0 → v2.*
 
 ### Attention
-*TBD: unfused vs FlashAttention-style, DRAM bytes, sequence-length sweep, and why attention is memory-bound.*
+*TBD: naive vs optimized unfused vs PyTorch math path, DRAM bytes, sequence-length sweep, and why attention is memory-bound.*
 
 ### Roofline plots
 *TBD: one chart per kernel family and GPU, each step annotated with why it moved.*
