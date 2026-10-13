@@ -1,0 +1,53 @@
+{
+  "gpu": "rtx4060_laptop",
+  "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "chip": "AD107",
+  "compute_cap": "8.9",
+  "sm_count": 24,
+  "memory_total_mib": 8188,
+  "clocks_max_sm_mhz": 3105,
+  "clocks_max_mem_mhz": 8001,
+  "l2_bytes": 33554432,
+  "dram_bus_bits": 128,
+  "dram_bw_nominal_gbs": 256,
+  "driver": "617.42 (Windows host)",
+  "cuda": "13.4.2",
+  "os": "Arch Linux on WSL2, kernel 6.18.33.2-microsoft-standard-WSL2",
+  "device": {
+    "sm_count": 24,
+    "l2_bytes": 33554432,
+    "dram_bus_bits": 128,
+    "warp_size": 32,
+    "max_threads_per_sm": 1536,
+    "max_blocks_per_sm": 24,
+    "max_threads_per_block": 1024,
+    "regs_per_sm": 65536,
+    "regs_per_block": 65536,
+    "smem_per_sm_bytes": 102400,
+    "smem_per_block_optin_bytes": 101376,
+    "smem_reserved_per_block_bytes": 1024,
+    "base_sm_clk_mhz": 2010,
+    "mem_clk_mhz": 8001
+  },
+  "ceilings": {
+    "sm_clk_mhz": 2505,
+    "mem_clk_mhz": 8001,
+    "dram_copy_gbs": 232.0,
+    "dram_read_gbs": 248.9,
+    "l2_read_gbs": 813.4,
+    "smem_read_gbs": 7363.8,
+    "fp32_gflops": 14092.6,
+    "fp16_tc_fp32acc_gflops": 61361.9,
+    "latency_ns": {
+      "l1": 17.1,
+      "l2": 108.2,
+      "dram": 261.5
+    },
+    "latency_cycles": {
+      "l1": 43,
+      "l2": 271,
+      "dram": 655
+    },
+    "measured": "2026-10-13"
+  }
+}

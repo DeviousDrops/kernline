@@ -20,3 +20,8 @@ target_link_libraries(kernels PRIVATE CUDA::cublas)
 
 add_executable(bench bench/bench.cu)
 target_link_libraries(bench PRIVATE kernels CUDA::nvml)
+
+# Roofline ceilings + device limits for specs/<gpu>.json (D3). tools/ceilings/run.sh drives it.
+add_executable(ceilings tools/ceilings/ceilings.cu)
+target_include_directories(ceilings PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(ceilings PRIVATE CUDA::nvml)
