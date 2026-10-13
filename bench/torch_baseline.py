@@ -87,6 +87,11 @@ def time_launch(launch) -> tuple[float, int, int]:
         warm_ms += timed(probe.replay, 1)[0]
         warm_n += 1
     batch = max(1, math.ceil(BATCH_MS / (warm_ms / warm_n)))
+    # One eager call in the range tools/profile.sh profiles (same marker as build/bench).
+    torch.cuda.nvtx.range_push("kl_profile")
+    launch()
+    torch.cuda.nvtx.range_pop()
+    torch.cuda.synchronize()
     graph = capture(batch)
     times, sms, mems = [], [], []
     for _ in range(RUNS):

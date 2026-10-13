@@ -14,6 +14,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <nvtx3/nvToolsExt.h>
 #include "common/cuda_check.h"
 #include "common/gpu_info.h"
 #include "common/timer.h"
@@ -23,6 +24,7 @@ static const int kWarmup = 3;
 static const float kWarmupMs = 500.0f;
 static const float kBatchMs = 5.0f;  // minimum length of one timed run
 static const int kRuns = 21;         // median of >= 20
+static const char* kProfileRange = "kl_profile";  // see time_launch and tools/profile.sh
 
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
 // v4 takes FP16 A and B: same buffers, filled as halves (see device_random).
@@ -97,6 +99,13 @@ static Timing time_launch(const std::function<int()>& launch) {
         CUDA_CHECK(launch());
         warm_ms += timer.stop_ms();
     }
+    // One complete call inside an NVTX range, after the warmup (caches and clocks are hot).
+    // tools/profile.sh profiles exactly the kernels in this range, however many one call launches
+    // (attention launches 2·heads + 2 kernels per call).
+    nvtxRangePushA(kProfileRange);
+    CUDA_CHECK(launch());
+    nvtxRangePop();
+    CUDA_CHECK(cudaDeviceSynchronize());
     // Each timed run is a batch of back-to-back launches lasting >= kBatchMs. Timing a sub-ms
     // kernel alone leaves the GPU idle between syncs (clocks sag) and puts launch/WSL jitter
     // into the measurement; the batch keeps the GPU busy and amortizes both.
