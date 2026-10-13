@@ -83,7 +83,7 @@ Nobody pushes to `main`. Work happens on **branches cut around real units of wor
 
 ### Rules
 - **At least ~4 meaningful commits before opening a PR** (e.g. one per kernel variant, plus results/tests). This is a guideline, not a quota. Never pad with trivial commits, and if a branch is getting huge (> ~1500 changed lines excluding results CSVs), split it.
-- **Plan changes are welcome as their own small PR** (`docs/<topic>`, e.g. `docs/drop-wmma`). Batch related doc edits into one PR instead of opening several, and fold a doc change into the feature branch when it only concerns that feature. These are exempt from the 4-commit guideline.
+- **Plan changes are welcome as their own small PR** (`docs/<topic>`, e.g. `docs/drop-wmma`; repo automation uses `ci/<topic>`). Batch related doc edits into one PR instead of opening several, and fold a doc change into the feature branch when it only concerns that feature. These are exempt from the 4-commit guideline.
 - **Branches above are the default, not a contract.** Rename, merge, or split them when the work changes shape. Record that in a `docs/` PR, or note it in the affected PR's description.
 - Cut each branch from an up-to-date `main` (`git switch main && git pull && git switch -c b/reductions`). Before opening the PR, `git rebase main`.
 - Optional: open a **draft PR** early (`gh pr create --draft`) on long branches (#4, #6, #8), so the partner can comment along the way.
@@ -91,6 +91,12 @@ Nobody pushes to `main`. Work happens on **branches cut around real units of wor
 - Merge with a **merge commit** (`gh pr merge --merge`), not squash, so each kernel variant stays a separate commit on `main` that the README can link to.
 - Kernel PRs fill in `.github/pull_request_template.md`. Each variant needs a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
 - Commits, PR descriptions, and review comments contain no AI/tool attribution lines (no `Co-Authored-By` trailers, no "generated with" footers).
+
+### Enforcement
+- `main` is protected. Changes need a PR with **1 approving review** from someone other than the author, all review conversations resolved, and the `no-attribution` + `branch-name` checks passing. Direct pushes, force pushes, and deletion are blocked, for the repo owner too.
+- `.github/workflows/pr-checks.yml` runs on every PR. `no-attribution` rejects co-author trailers and "generated with [...]" footers in commit messages or the PR description. `branch-name` requires `a/*`, `b/*`, `docs/*`, `ci/*`, or `results`.
+- Branch *count* and the ~4-commit guideline are judgment calls. The reviewer checks them via the PR template's checklist.
+- If an attribution line slips into a commit, fix it on the branch (`git commit --amend` for the latest commit, or `git rebase -i main` and reword) and `git push --force-with-lease`. Force-pushing your own feature branch is fine. Only `main` is locked.
 
 ### Reviewing a PR
 1. Check out the branch: `gh pr checkout <n>`.
