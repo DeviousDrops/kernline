@@ -1,7 +1,10 @@
 #include "src/api.h"
 #include <cstdint>
 #include <cublas_v2.h>
+#include "common/warp_reduce.cuh"
 #include "kernels/gemm/gemm.h"
+#include "kernels/layernorm/layernorm.h"
+#include "kernels/softmax/softmax.h"
 
 extern "C" int gemm_v0(const float* A, const float* B, float* C, int M, int N, int K,
                        cudaStream_t s) {
@@ -60,4 +63,98 @@ extern "C" int gemm_cublas(const float* A, const float* B, float* C, int M, int 
     cublasStatus_t st = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &one, B, N, A, K,
                                     &zero, C, N);
     return st == CUBLAS_STATUS_SUCCESS ? cudaSuccess : cudaErrorUnknown;
+}
+
+// ---- softmax / layernorm: row-wise over the last dim of a rows×cols matrix
+
+extern "C" int softmax_v0(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int block = 128;
+    softmax_v0_kernel<<<(rows + block - 1) / block, block, 0, s>>>(x, y, rows, cols);
+    return cudaGetLastError();
+}
+
+extern "C" int layernorm_v0(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int block = 128;
+    layernorm_v0_kernel<<<(rows + block - 1) / block, block, 0, s>>>(x, gamma, beta, y, rows,
+                                                                      cols, eps);
+    return cudaGetLastError();
+}
+
+extern "C" int softmax_v1(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int rows_per_block = kSoftmaxV1Threads / 32;
+    const int grid = (rows + rows_per_block - 1) / rows_per_block;
+    if (rows_vectorizable(cols, x, y))
+        softmax_v1_kernel<<<grid, kSoftmaxV1Threads, 0, s>>>(x, y, rows, cols);
+    else
+        softmax_v1_scalar_kernel<<<grid, kSoftmaxV1Threads, 0, s>>>(x, y, rows, cols);
+    return cudaGetLastError();
+}
+
+// v2 register-cache size: the smallest kCache with 128·kCache >= cols, or 0 (stream) past 2048.
+// 16 float4 = 64 registers of row data per lane is the largest that keeps 3 blocks per SM.
+static int v2_cache(int cols) {
+    for (int k : {1, 2, 4, 8, 16})
+        if (cols <= 128 * k) return k;
+    return 0;
+}
+
+extern "C" int softmax_v2(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int k = rows_vectorizable(cols, x, y) ? v2_cache(cols) : -1;
+    return softmax_v2_launch(k, x, y, rows, cols, s);
+}
+
+extern "C" int layernorm_v2(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int k = rows_vectorizable(cols, x, gamma, beta, y) ? v2_cache(cols) : -1;
+    return layernorm_v2_launch(k, x, gamma, beta, y, rows, cols, eps, s);
+}
+
+// v3 launch shape for a row of `cols` floats: about 4 float4 per thread, 128..1024 threads, and
+// the row's bytes of dynamic shared memory. Returns false if the row does not fit in the
+// per-block opt-in shared memory (minus the 128 bytes of static reduction scratch).
+static bool v3_shape(int cols, int* threads, size_t* smem) {
+    static int optin = -1;
+    if (optin < 0) {
+        int dev = 0;
+        cudaGetDevice(&dev);
+        cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+    }
+    *smem = (size_t)cols * sizeof(float);
+    if (*smem + 32 * sizeof(float) > (size_t)optin) return false;
+    const int want = ((cols + 15) / 16 + 31) / 32 * 32;
+    *threads = want < 128 ? 128 : want > 1024 ? 1024 : want;
+    return true;
+}
+
+extern "C" int softmax_v3(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const bool vec = rows_vectorizable(cols, x, y);
+    int threads;
+    size_t smem;
+    if (!v3_shape(cols, &threads, &smem))
+        return softmax_v2_launch(vec ? 0 : -1, x, y, rows, cols, s);
+    return softmax_v3_launch(vec, threads, smem, x, y, rows, cols, s);
+}
+
+extern "C" int layernorm_v3(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const bool vec = rows_vectorizable(cols, x, gamma, beta, y);
+    int threads;
+    size_t smem;
+    if (!v3_shape(cols, &threads, &smem))
+        return layernorm_v2_launch(vec ? 0 : -1, x, gamma, beta, y, rows, cols, eps, s);
+    return layernorm_v3_launch(vec, threads, smem, x, gamma, beta, y, rows, cols, eps, s);
+}
+
+extern "C" int layernorm_v1(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int rows_per_block = kLayerNormV1Threads / 32;
+    const int grid = (rows + rows_per_block - 1) / rows_per_block;
+    if (rows_vectorizable(cols, x, gamma, beta, y))
+        layernorm_v1_kernel<<<grid, kLayerNormV1Threads, 0, s>>>(x, gamma, beta, y, rows, cols,
+                                                                  eps);
+    else
+        layernorm_v1_scalar_kernel<<<grid, kLayerNormV1Threads, 0, s>>>(x, gamma, beta, y, rows,
+                                                                         cols, eps);
+    return cudaGetLastError();
 }

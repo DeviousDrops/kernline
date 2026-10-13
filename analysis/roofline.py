@@ -31,6 +31,8 @@ SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "
 BLUES = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281", "#0d366b"]  # steps 250..700
 BASELINE = INK_2
 BASELINES = {"cublas", "torch", "cudnn"}
+# Variants that take FP16 inputs and run on tensor cores: they get the FP16 tensor-core roof.
+TENSOR_CORE_VARIANTS = {"gemm": {"v4"}}
 
 
 def load_specs() -> dict:
@@ -91,20 +93,53 @@ def place_slope_labels(labels) -> None:
                     color=color, rotation=angle, rotation_mode="anchor", ha="left", va="bottom")
 
 
-def draw_panel(ax, spec: dict, picked: dict[str, dict], xlim: tuple[float, float]) -> list:
+def declutter(texts, pad_pt: float = 2.0) -> None:
+    """Nudge point labels down until none overlaps an earlier one (greedy, top to bottom).
+    Call after layout is final, since it measures rendered extents."""
+    if not texts:
+        return
+    fig = texts[0].figure
+    renderer = fig.canvas.get_renderer()
+    px_per_pt = fig.dpi / 72
+    placed = []
+    for t in sorted(texts, key=lambda t: -t.get_window_extent(renderer).y1):
+        for _ in range(40):
+            box = t.get_window_extent(renderer).expanded(1.0, 1.0)
+            hit = next((p for p in placed if box.overlaps(p)), None)
+            if hit is None:
+                break
+            dy = (box.y1 - hit.y0) / px_per_pt + pad_pt  # move just below the box it hits
+            x, y = t.xyann
+            t.xyann = (x, y - dy)
+        placed.append(t.get_window_extent(renderer))
+
+
+def draw_panel(ax, spec: dict, picked: dict[str, dict], xlim: tuple[float, float],
+               kernel: str) -> tuple[list, list]:
     c = spec["ceilings"]
     peak = c["fp32_gflops"]
+    tensor = [v for v in picked if v in TENSOR_CORE_VARIANTS.get(kernel, ())]
+    tc_peak = c.get("fp16_tc_fp32acc_gflops") if tensor else None
     roofs = [("DRAM", c["dram_read_gbs"], "-", INK_2), ("L2", c["l2_read_gbs"], (0, (4, 3)), INK_3)]
     xs = [xlim[0] * (xlim[1] / xlim[0]) ** (i / 200) for i in range(201)]
     slope_labels = []
-    for (name, bw, style, color), y in zip(roofs, (peak / 300, peak / 30)):
+    # Labels sit low on each slope, below where memory-bound kernels land near the roof.
+    for (name, bw, style, color), y in zip(roofs, (peak / 1000, peak / 150)):
         ax.plot(xs, [min(peak, bw * x) for x in xs], ls=style, lw=1.25, color=color, zorder=1)
         slope_labels.append((ax, y / bw, y, bw, f"{name} {bw:.0f} GB/s", color))
     ax.axhline(peak, color=INK_2, lw=1.25, zorder=1)
-    ax.annotate(f"FP32 {peak / 1000:.1f} TFLOP/s", xy=(xlim[1], peak), xytext=(-4, 5),
-                textcoords="offset points", ha="right", fontsize=8, color=INK_2)
+    ax.annotate(f"FP32 {peak / 1000:.1f} TFLOP/s", xy=(xlim[0], peak), xytext=(4, 4),
+                textcoords="offset points", ha="left", fontsize=8, color=INK_2)
+    if tc_peak:
+        # FP16-input variants run on the tensor pipe, so their compute roof is this one; their
+        # bandwidth roofs are the same lines, since the x axis is FLOP per byte actually moved.
+        ax.axhline(tc_peak, color=INK_3, lw=1.25, ls=(0, (1, 2)), zorder=1)
+        ax.annotate(f"FP16 tensor core {tc_peak / 1000:.1f} TFLOP/s ({', '.join(tensor)})",
+                    xy=(xlim[0], tc_peak), xytext=(4, 4), textcoords="offset points",
+                    ha="left", fontsize=8, color=INK_3)
 
     steps = [v for v in picked if v not in BASELINES]
+    texts = []
     for v, r in picked.items():
         x, y, measured = point(r)
         if v in BASELINES:
@@ -114,13 +149,14 @@ def draw_panel(ax, spec: dict, picked: dict[str, dict], xlim: tuple[float, float
             color = BLUES[min(len(BLUES) - 1, i * (len(BLUES) - 1) // max(1, len(steps) - 1))]
         ax.scatter([x], [y], s=64, marker="o", zorder=3, linewidths=2,
                    facecolors=color if measured else SURFACE, edgecolors=color)
-        ax.annotate(f"{v}  {y:,.0f} GFLOP/s\n{r['dims']}", xy=(x, y), xytext=(7, -3),
-                    textcoords="offset points", fontsize=8, color=INK, va="top")
+        texts.append(ax.annotate(f"{v}  {y:,.0f}", xy=(x, y), xytext=(8, 0),
+                                 textcoords="offset points", fontsize=8, color=INK,
+                                 va="center", ha="left"))
 
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlim(*xlim)
-    ax.set_ylim(peak / 2000, peak * 3)
+    ax.set_ylim(peak / 2000, max(peak, tc_peak or 0) * 3)
     ax.set_facecolor(SURFACE)
     ax.grid(True, which="major", color=GRID, lw=0.8)
     ax.set_axisbelow(True)
@@ -130,10 +166,11 @@ def draw_panel(ax, spec: dict, picked: dict[str, dict], xlim: tuple[float, float
         ax.spines[side].set_color(INK_3)
     ax.tick_params(colors=INK_2, labelsize=8)
     clk = c.get("sm_clk_mhz")
-    ax.set_title(f"{spec['gpu']}  ({spec['device']['sm_count']} SMs, ceilings at {clk} MHz)",
-                 fontsize=10, color=INK, loc="left")
+    dims = sorted({r["dims"] for r in picked.values()}, key=_dims_size)
+    ax.set_title(f"{spec['gpu']}  ({spec['device']['sm_count']} SMs, ceilings at {clk} MHz)\n"
+                 f"{' / '.join(dims)}", fontsize=10, color=INK, loc="left")
     ax.set_xlabel("Arithmetic intensity (FLOP / DRAM byte)", fontsize=9, color=INK_2)
-    return slope_labels
+    return slope_labels, texts
 
 
 def plot_kernel(kernel: str, specs: dict, dims: str | None, out_dir: Path) -> Path | None:
@@ -146,16 +183,21 @@ def plot_kernel(kernel: str, specs: dict, dims: str | None, out_dir: Path) -> Pa
 
     fig, axes = plt.subplots(1, len(panels), figsize=(6.4 * len(panels), 4.8), sharey=False,
                              squeeze=False, facecolor=SURFACE)
-    labels = []
+    labels, point_labels = [], []
     for ax, (gpu, picked) in zip(axes[0], panels):
-        labels += draw_panel(ax, specs[gpu], picked, xlim)
+        slopes, texts = draw_panel(ax, specs[gpu], picked, xlim, kernel)
+        labels += slopes
+        point_labels.append(texts)
     axes[0][0].set_ylabel("Achieved GFLOP/s", fontsize=9, color=INK_2)
     fig.suptitle(f"{kernel}: roofline", fontsize=12, color=INK, x=0.01, ha="left")
-    fig.text(0.01, 0.01, "filled = ncu-measured DRAM bytes · hollow = theoretical bytes\n"
-             "blue light→dark = optimization steps · gray = library baseline",
+    fig.text(0.01, 0.01, "labels: variant  GFLOP/s · filled = ncu-measured DRAM bytes · "
+             "hollow = theoretical bytes\nblue light→dark = optimization steps · "
+             "gray = library baseline",
              fontsize=7.5, color=INK_3, va="bottom")
     fig.tight_layout(rect=(0, 0.06, 1, 0.97))
     place_slope_labels(labels)
+    for texts in point_labels:
+        declutter(texts)
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{kernel}.png"
     fig.savefig(out, dpi=150)
