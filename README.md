@@ -41,15 +41,15 @@ tools/smoke/run.sh   # go/no-go: builds, runs, and profiles a vector-add
 ```
 
 ## Build, test, profile
-*(These commands work once the scaffold lands in week 1.)*
 ```sh
-cmake -B build -G Ninja && cmake --build build      # libkernels.so, bench, block
-pytest tests/                                        # every variant vs PyTorch
-./build/bench gemm v3 4096 4096 4096                 # CSV row: time, FLOP, bytes, clocks
-tools/profile.sh gemm v3 4096 4096 4096              # Nsight Compute report + metrics CSV
-python analysis/roofline.py                          # regenerate all plots from results/
-python -m model predict --kernel gemm --variant v3 --dims 4096,4096,4096 --gpu rtx4070_laptop
+cmake -B build -G Ninja && cmake --build build      # libkernels.so, bench, ceilings
+.venv/bin/python -m pytest tests/                    # every variant vs PyTorch + tooling tests
+tools/ceilings/run.sh                                # measure this GPU's roofs → specs/<gpu>.json
+./build/bench gemm v0 4096 4096 4096                 # CSV row: time, FLOP, bytes, clocks
+tools/profile.sh gemm v0 4096 4096 4096              # ncu report + results/<gpu>/gemm.csv row
+.venv/bin/python analysis/roofline.py                # analysis/plots/<kernel>.png from results/
 ```
+Run benchmarks and ceilings on an idle, plugged-in laptop: clocks follow the power limit, and every row records the clock it ran at.
 
 ## Repo layout
 ```

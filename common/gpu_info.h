@@ -1,10 +1,12 @@
 #pragma once
+#include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <string>
+#include <vector>
+#include <nvml.h>
 #include "common/cuda_check.h"
 
-// GPU identity for the CSV schema (D7): slug such as "rtx4070_laptop" plus current clocks.
+// GPU identity for the CSV schema (D7): slug such as "rtx4070_laptop" plus clocks.
 struct GpuInfo {
     std::string name;
     int sm_clk_mhz = 0;
@@ -23,21 +25,49 @@ inline std::string gpu_slug(std::string s) {
     return s;
 }
 
-// Clocks come from nvidia-smi and stay 0 when it cannot report them. Call this right after
-// the timed runs so the clocks reflect the loaded state.
-inline GpuInfo gpu_info(int device = 0) {
+// Samples SM/memory clocks through NVML. Call sample() while a kernel is in flight (after the
+// launch, before synchronizing): laptop GPUs drop to idle clocks within milliseconds, so a query
+// after the runs reads the idle state, not the clock the kernel ran at. Clocks stay 0 when NVML
+// is unavailable.
+class ClockSampler {
+  public:
+    explicit ClockSampler(int device = 0) {
+        char bus_id[32];
+        ok_ = cudaDeviceGetPCIBusId(bus_id, sizeof bus_id, device) == cudaSuccess &&
+              nvmlInit_v2() == NVML_SUCCESS &&
+              nvmlDeviceGetHandleByPciBusId_v2(bus_id, &dev_) == NVML_SUCCESS;
+    }
+    ~ClockSampler() {
+        if (ok_) nvmlShutdown();
+    }
+    void sample() {
+        unsigned sm = 0, mem = 0;
+        if (ok_ && nvmlDeviceGetClockInfo(dev_, NVML_CLOCK_SM, &sm) == NVML_SUCCESS &&
+            nvmlDeviceGetClockInfo(dev_, NVML_CLOCK_MEM, &mem) == NVML_SUCCESS) {
+            sm_.push_back(sm);
+            mem_.push_back(mem);
+        }
+    }
+    int median_sm() const { return median(sm_); }
+    int median_mem() const { return median(mem_); }
+
+  private:
+    static int median(std::vector<unsigned> v) {
+        if (v.empty()) return 0;
+        std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+        return (int)v[v.size() / 2];
+    }
+    bool ok_ = false;
+    nvmlDevice_t dev_{};
+    std::vector<unsigned> sm_, mem_;
+};
+
+inline GpuInfo gpu_info(const ClockSampler& clocks, int device = 0) {
     GpuInfo info;
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
     info.name = gpu_slug(prop.name);
-
-    std::string cmd = "nvidia-smi -i " + std::to_string(device) +
-                      " --query-gpu=clocks.current.sm,clocks.current.memory"
-                      " --format=csv,noheader,nounits 2>/dev/null";
-    if (FILE* p = popen(cmd.c_str(), "r")) {
-        if (std::fscanf(p, "%d , %d", &info.sm_clk_mhz, &info.mem_clk_mhz) != 2)
-            info.sm_clk_mhz = info.mem_clk_mhz = 0;
-        pclose(p);
-    }
+    info.sm_clk_mhz = clocks.median_sm();
+    info.mem_clk_mhz = clocks.median_mem();
     return info;
 }
