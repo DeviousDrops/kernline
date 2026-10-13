@@ -1,6 +1,7 @@
 // bench <kernel> <variant> <dims...>  ->  one CSV row in the frozen schema (docs/DESIGN.md).
 // bench --header prints the header line. dram_bytes and achieved_occ are left empty here:
-// they come from Nsight Compute, not from a timing run.
+// they come from Nsight Compute, not from a timing run. Clocks are the median NVML reading
+// taken while each timed kernel is in flight.
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -13,6 +14,7 @@
 #include "src/api.h"
 
 static const int kWarmup = 3;
+static const float kWarmupMs = 500.0f;
 static const int kRuns = 21;  // median of >= 20
 
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
@@ -57,16 +59,25 @@ int main(int argc, char** argv) {
     float* C = device_random(m * n);
 
     GpuTimer timer;
-    std::vector<float> ms(kRuns);
-    for (int i = -kWarmup; i < kRuns; ++i) {
+    ClockSampler clocks;
+    // Warm up for at least kWarmup launches *and* kWarmupMs: an idle laptop GPU needs a few
+    // hundred ms to reach its boost clock, and NVML (notably under WSL2) reports the change late.
+    float warm_ms = 0.0f;
+    for (int i = 0; i < kWarmup || warm_ms < kWarmupMs; ++i) {
         timer.start();
         CUDA_CHECK(fn(A, B, C, M, N, K, 0));
-        float t = timer.stop_ms();
-        if (i >= 0) ms[i] = t;
+        warm_ms += timer.stop_ms();
+    }
+    std::vector<float> ms(kRuns);
+    for (int i = 0; i < kRuns; ++i) {
+        timer.start();
+        CUDA_CHECK(fn(A, B, C, M, N, K, 0));
+        clocks.sample();  // kernel still in flight: reads the clock it runs at
+        ms[i] = timer.stop_ms();
     }
     std::sort(ms.begin(), ms.end());
 
-    const GpuInfo gpu = gpu_info();
+    const GpuInfo gpu = gpu_info(clocks);
     const double flop = 2.0 * m * n * k;                          // one mul + one add per term
     const double bytes = 4.0 * (m * k + k * n + m * n);           // read A and B once, write C once
     std::printf("%s,%d,%d,gemm,%s,%dx%dx%d,%.4f,%.0f,%.0f,,,\n", gpu.name.c_str(),

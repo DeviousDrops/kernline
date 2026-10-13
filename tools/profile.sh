@@ -8,7 +8,7 @@
 #    dram_bytes and achieved_occ from ncu) into results/<gpu>/<kernel>.csv, and the full metric
 #    row into results/ncu/<gpu>/metrics.csv.
 #
-# SKIP=<n> overrides how many launches to skip before profiling (default: bench's 3 warmups).
+# SKIP=<n> overrides how many launches to skip before profiling (default 3, past cold caches).
 set -euo pipefail
 [ $# -ge 3 ] || { sed -n '2p' "$0" | sed 's/^# //' >&2; exit 2; }
 

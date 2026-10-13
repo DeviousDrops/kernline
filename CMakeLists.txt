@@ -19,4 +19,4 @@ target_include_directories(kernels PUBLIC ${CMAKE_SOURCE_DIR})
 target_link_libraries(kernels PRIVATE CUDA::cublas)
 
 add_executable(bench bench/bench.cu)
-target_link_libraries(bench PRIVATE kernels)
+target_link_libraries(bench PRIVATE kernels CUDA::nvml)
