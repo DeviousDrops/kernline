@@ -16,9 +16,10 @@ You own GEMM (naive → tensor cores) and the analytical performance model. Part
 
 ## Day 1
 1. The toolchain is already installed natively, so skip `tools/setup_arch.sh` and the Windows steps in `DESIGN.md` → *Environment*. Missing packages come from `pacman -S cuda nsight-compute cmake ninja uv`.
-2. Allow non-root access to the GPU performance counters (the native-Linux equivalent of the Windows control-panel step). The driver currently reports `RmProfilingAdminOnly: 1`, so `ncu` fails with `ERR_NVGPUCTRPERM`:
+2. Allow non-root access to the GPU performance counters (the native-Linux equivalent of the Windows control-panel step). By default the driver reports `RmProfilingAdminOnly: 1` and `ncu` fails with `ERR_NVGPUCTRPERM`:
    ```sh
    echo 'options nvidia NVreg_RestrictProfilingToAdminUsers=0' | sudo tee /etc/modprobe.d/nvidia-profiling.conf
+   sudo limine-mkinitcpio   # the nvidia modules load from the initramfs, so it must be rebuilt
    # reboot, then: grep Profiling /proc/driver/nvidia/params   → RmProfilingAdminOnly: 0
    ```
 3. Run `tools/smoke/run.sh` and confirm it prints `PASS` and `ncu` reads counters.
