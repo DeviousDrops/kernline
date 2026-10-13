@@ -3,6 +3,7 @@
 
     torch_baseline.py softmax   <rows> <cols>
     torch_baseline.py layernorm <rows> <cols>
+    torch_baseline.py attention <heads> <N> <d>
 
 Same method as bench/bench.cu: warm up for >= 3 launches and >= 500 ms, then 21 timed batches
 of back-to-back launches lasting >= 5 ms each; time_ms is the median per launch. Clocks are the
@@ -102,12 +103,31 @@ def time_launch(launch) -> tuple[float, int, int]:
     return statistics.median(times), int(statistics.median(sms)), int(statistics.median(mems))
 
 
+def attention(heads: int, N: int, d: int) -> tuple[float, int, int, float, float]:
+    """F.scaled_dot_product_attention forced to the math backend (D9): the unfused
+    Q·Kᵀ -> softmax -> ·V that PyTorch falls back to, not its fused flash/efficient kernels.
+    flop and bytes use the same conventions as bench_attention in bench/bench.cu."""
+    from torch.nn.attention import SDPBackend, sdpa_kernel
+    q, k, v = (torch.rand(1, heads, N, d, device="cuda") - 0.5 for _ in range(3))
+    with torch.inference_mode(), sdpa_kernel(SDPBackend.MATH):
+        ms, sm, mem = time_launch(lambda: F.scaled_dot_product_attention(q, k, v))
+    nn = heads * N * N
+    return ms, sm, mem, 4 * nn * d + 5 * nn, 4 * (4 * heads * N * d + 4 * nn)
+
+
 def main() -> int:
-    if len(sys.argv) != 4 or sys.argv[1] not in ("softmax", "layernorm"):
+    if not ((len(sys.argv) == 4 and sys.argv[1] in ("softmax", "layernorm")) or
+            (len(sys.argv) == 5 and sys.argv[1] == "attention")):
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return 2
-    kernel, rows, cols = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    gpu = gpu_slug(torch.cuda.get_device_name(0))
     torch.manual_seed(0)
+    if sys.argv[1] == "attention":
+        heads, N, d = map(int, sys.argv[2:5])
+        ms, sm, mem, flop, nbytes = attention(heads, N, d)
+        print(f"{gpu},{sm},{mem},attention,torch,{heads}x{N}x{d},{ms:.4f},{flop},{nbytes},,,")
+        return 0
+    kernel, rows, cols = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
     x = torch.rand(rows, cols, device="cuda") - 0.5
     elems = rows * cols
     with torch.inference_mode():
@@ -119,7 +139,6 @@ def main() -> int:
             beta = torch.rand(cols, device="cuda") - 0.5
             ms, sm, mem = time_launch(lambda: F.layer_norm(x, (cols,), gamma, beta, 1e-5))
             flop, nbytes = 8 * elems, 8 * elems + 8 * cols
-    gpu = gpu_slug(torch.cuda.get_device_name(0))
     print(f"{gpu},{sm},{mem},{kernel},torch,{rows}x{cols},{ms:.4f},{flop},{nbytes},,,")
     return 0
 
