@@ -97,7 +97,8 @@ def draw_panel(ax, spec: dict, picked: dict[str, dict], xlim: tuple[float, float
     roofs = [("DRAM", c["dram_read_gbs"], "-", INK_2), ("L2", c["l2_read_gbs"], (0, (4, 3)), INK_3)]
     xs = [xlim[0] * (xlim[1] / xlim[0]) ** (i / 200) for i in range(201)]
     slope_labels = []
-    for (name, bw, style, color), y in zip(roofs, (peak / 300, peak / 30)):
+    # Labels sit low on each slope, below where memory-bound kernels land near the roof.
+    for (name, bw, style, color), y in zip(roofs, (peak / 1000, peak / 150)):
         ax.plot(xs, [min(peak, bw * x) for x in xs], ls=style, lw=1.25, color=color, zorder=1)
         slope_labels.append((ax, y / bw, y, bw, f"{name} {bw:.0f} GB/s", color))
     ax.axhline(peak, color=INK_2, lw=1.25, zorder=1)
