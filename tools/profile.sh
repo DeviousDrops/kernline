@@ -24,7 +24,19 @@ kernel=$1 variant=$2
 shift 2
 dims=$(IFS=x; echo "$*")
 
-row=$("$BENCH" "$kernel" "$variant" "$@")
+# variant "torch" is the PyTorch baseline (D9). It launches setup kernels (randn, ...) before the
+# op, so ncu only counts launches whose name matches the op.
+cmd=("$BENCH" "$kernel" "$variant" "$@")
+filter=()
+if [ "$variant" = torch ]; then
+    cmd=("$PY" bench/torch_baseline.py "$kernel" "$@")
+    case $kernel in
+        softmax) filter=(--kernel-name "regex:(?i)softmax") ;;
+        layernorm) filter=(--kernel-name "regex:(?i)layer_?norm") ;;
+    esac
+fi
+
+row=$("${cmd[@]}")
 gpu=${row%%,*}
 name="${kernel}_${variant}_${dims}"
 mkdir -p "results/ncu/$gpu"
@@ -34,11 +46,11 @@ sm__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_pea
 l1tex__data_bank_conflicts_pipe_lsu_mem_shared.sum,l1tex__t_sector_hit_rate.pct,\
 lts__t_sector_hit_rate.pct,regex:smsp__average_warp_latency_issue_stalled_.*"  # ncu rejects ^/$ anchors
 
-"$NCU" --clock-control base --launch-skip "${SKIP:-3}" --launch-count 1 \
+"$NCU" --clock-control base "${filter[@]}" --launch-skip "${SKIP:-3}" --launch-count 1 \
     --section SpeedOfLight --section MemoryWorkloadAnalysis --section Occupancy \
     --section LaunchStats --section WarpStateStats --section SchedulerStats \
     --metrics "$METRICS" -f -o "results/ncu/$gpu/$name" \
-    "$BENCH" "$kernel" "$variant" "$@" >/dev/null
+    "${cmd[@]}" >/dev/null
 
 "$PY" tools/ncu_metrics.py "results/ncu/$gpu/$name.ncu-repz" \
     --kernel "$kernel" --variant "$variant" --dims "$dims" --bench-row "$row" \
