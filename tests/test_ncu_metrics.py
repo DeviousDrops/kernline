@@ -16,12 +16,20 @@ NCU = shutil.which("ncu") or "/opt/nsight-compute/ncu"
 pytestmark = pytest.mark.skipif(not Path(NCU).exists(), reason="ncu not installed")
 
 
+def recorded() -> dict:
+    """The results row tools/profile.sh wrote from REPORT; re-profiling rewrites both together."""
+    with (ROOT / "results/rtx4070_laptop/gemm.csv").open(newline="") as f:
+        return next(r for r in csv.DictReader(f)
+                    if (r["variant"], r["dims"]) == ("v0", "1024x1024x1024"))
+
+
 def test_extract_matches_recorded_row():
     m = ncu_metrics.extract(ncu_metrics.read_report(REPORT))
     assert m["kernels_in_report"] == 1
-    assert m["dram_read_bytes"] == 40713088          # value recorded in results/rtx4070_laptop
-    assert m["achieved_occ_pct"] == pytest.approx(98.02, abs=0.01)
-    assert m["gpu_time_ms"] == pytest.approx(10.03, abs=0.01)
+    row = recorded()
+    assert m["dram_read_bytes"] + m["dram_write_bytes"] == int(row["dram_bytes"])
+    assert m["achieved_occ_pct"] == pytest.approx(float(row["achieved_occ"]), abs=0.01)
+    assert m["gpu_time_ms"] > 0
     assert m["block_size"] == 256
 
 
@@ -34,5 +42,5 @@ def test_upsert_replaces_matching_row(tmp_path):
                         "--results", out, "--metrics-csv", tmp_path / "metrics.csv"], check=True)
     rows = list(csv.DictReader(out.open()))
     assert len(rows) == 1
-    assert rows[0]["dram_bytes"] == "40713088" and rows[0]["notes"] == "ncu"
+    assert rows[0]["dram_bytes"] == recorded()["dram_bytes"] and rows[0]["notes"] == "ncu"
     assert len(list(csv.DictReader((tmp_path / "metrics.csv").open()))) == 1

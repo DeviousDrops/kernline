@@ -13,5 +13,41 @@
   "driver": "615.78.08",
   "cuda": "13.4.2",
   "os": "CachyOS, native Linux (not WSL)",
-  "ceilings": null
+  "ceilings": {
+    "sm_clk_mhz": 2490,
+    "mem_clk_mhz": 8001,
+    "dram_copy_gbs": 228.2,
+    "dram_read_gbs": 249.2,
+    "l2_read_gbs": 1560.4,
+    "smem_read_gbs": 11026.4,
+    "fp32_gflops": 20878.7,
+    "fp16_tc_fp32acc_gflops": 90878.7,
+    "latency_ns": {
+      "l1": 16.1,
+      "l2": 113.5,
+      "dram": 218.5
+    },
+    "latency_cycles": {
+      "l1": 40,
+      "l2": 283,
+      "dram": 544
+    },
+    "measured": "2026-10-13"
+  },
+  "device": {
+    "sm_count": 36,
+    "l2_bytes": 33554432,
+    "dram_bus_bits": 128,
+    "warp_size": 32,
+    "max_threads_per_sm": 1536,
+    "max_blocks_per_sm": 24,
+    "max_threads_per_block": 1024,
+    "regs_per_sm": 65536,
+    "regs_per_block": 65536,
+    "smem_per_sm_bytes": 102400,
+    "smem_per_block_optin_bytes": 101376,
+    "smem_reserved_per_block_bytes": 1024,
+    "base_sm_clk_mhz": 1605,
+    "mem_clk_mhz": 8001
+  }
 }

@@ -6,7 +6,7 @@ from harness import TOL, launch
 
 pytestmark = pytest.mark.gpu
 
-VARIANTS = ["v0", "cublas"]
+VARIANTS = ["v0", "v1", "v2", "v3", "cublas"]
 # (M, N, K): C is M×N. Includes degenerate, non-square, and sizes no tile divides.
 DIMS = [(1, 1, 1), (1, 37, 5), (33, 1, 7), (16, 16, 16), (257, 129, 65), (100, 300, 200),
         (1024, 1024, 1024)]
@@ -21,3 +21,14 @@ def test_gemm_matches_torch(variant, M, N, K):
     C = torch.full((M, N), float("nan"), device="cuda")
     launch(f"gemm_{variant}", A, B, C, M, N, K)
     torch.testing.assert_close(C, A @ B, **TOL[torch.float32])
+
+
+@pytest.mark.parametrize("M,N,K", DIMS + [(136, 264, 40)])  # last: 16-byte loads, clipped tiles
+def test_gemm_v4_fp16_in_fp32_acc(M, N, K):
+    torch.manual_seed(0)
+    A = torch.randn(M, K, device="cuda", dtype=torch.float16)
+    B = torch.randn(K, N, device="cuda", dtype=torch.float16)
+    C = torch.full((M, N), float("nan"), device="cuda")
+    launch("gemm_v4", A, B, C, M, N, K)
+    # A product of two halves is exact in FP32, so only the FP32 summation order differs.
+    torch.testing.assert_close(C, A.float() @ B.float(), **TOL[torch.float32])
