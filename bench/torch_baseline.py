@@ -7,8 +7,12 @@
 Same method as bench/bench.cu: warm up for >= 3 launches and >= 500 ms, then 21 timed batches
 of back-to-back launches lasting >= 5 ms each; time_ms is the median per launch. Clocks are the
 median NVML reading taken while the batch is in flight. Runs under inference_mode (no autograd).
-Each call returns a fresh tensor from PyTorch's caching allocator, which reuses the block freed by
-the previous call, so no cudaMalloc happens inside the timed region.
+
+Each timed batch is replayed from a CUDA graph captured once. A Python-level call costs 20-60 us
+of CPU dispatch, longer than the kernel itself at small shapes, so eager back-to-back calls leave
+the GPU idle between kernels and time the CPU instead. The C++ bench enqueues in ~3 us, so it
+doesn't need this. The graph's output buffer is allocated once at capture, so no allocator runs
+inside the timed region either.
 """
 import ctypes
 import math
@@ -53,23 +57,40 @@ def gpu_slug(name: str) -> str:
 def time_launch(launch) -> tuple[float, int, int]:
     start, stop = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
-    def timed(n: int) -> float:
+    def timed(fn, n: int) -> float:
         start.record()
         for _ in range(n):
-            launch()
+            fn()
         sample = nvml.clocks()
         stop.record()
         stop.synchronize()
         return start.elapsed_time(stop), sample
 
+    # Kernel time per call, measured from a captured graph so CPU dispatch is excluded.
+    def capture(n: int) -> torch.cuda.CUDAGraph:
+        g = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(g):
+            for _ in range(n):
+                launch()
+        return g
+
+    side = torch.cuda.Stream()  # graph capture needs the ops warmed up on a side stream first
+    side.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(side):
+        for _ in range(WARMUP):
+            launch()
+    torch.cuda.current_stream().wait_stream(side)
+
+    probe = capture(1)
     warm_ms, warm_n = 0.0, 0
     while warm_n < WARMUP or warm_ms < WARMUP_MS:
-        warm_ms += timed(1)[0]
+        warm_ms += timed(probe.replay, 1)[0]
         warm_n += 1
     batch = max(1, math.ceil(BATCH_MS / (warm_ms / warm_n)))
+    graph = capture(batch)
     times, sms, mems = [], [], []
     for _ in range(RUNS):
-        ms, (sm, mem) = timed(batch)
+        ms, (sm, mem) = timed(graph.replay, 1)
         times.append(ms / batch)
         sms.append(sm)
         mems.append(mem)
