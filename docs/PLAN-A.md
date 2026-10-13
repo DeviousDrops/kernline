@@ -22,8 +22,11 @@ You own GEMM (naive → tensor cores) and the analytical performance model. Part
 | 7 | Tune on 4070 Laptop data only. Freeze, then predict the 4060 Laptop from B's results. Error tables per tier × kernel × GPU, scatter plots, written failure analysis (latency at small sizes, bank conflicts, L2 reuse, clock variance, launch overhead). Block-level prediction vs measured. |
 | 8 | Support B's simulator: document GEMM v0/v2/v3 index math for address replay (D5). README assembly with B. |
 
-## Definition of done per step
-Correctness test passes (including sizes not divisible by the tile) → CSV row in `results/rtx4070_laptop/` → ncu report → one-sentence roofline explanation in the PR.
+## Branches and PRs
+One branch and one PR per phase: `a/phase1-baseline` (weeks 1–2), `a/phase2-optimize` (3–5), `a/phase3-model` (6–7), `a/phase4-sim` (8). B reviews and merges. You review B's `b/phase*` PRs (procedure in `DESIGN.md` → *Reviewing a PR*). B's attention depends on your GEMM, so land GEMM work early in each phase.
+
+## Definition of done per variant (one commit each)
+Correctness test passes (including sizes not divisible by the tile) → CSV row in `results/rtx4070_laptop/` → ncu report → one-sentence roofline explanation, collected into the phase PR's table.
 
 ## Verification
 - `cmake -B build -G Ninja && cmake --build build`

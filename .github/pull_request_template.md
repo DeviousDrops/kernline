@@ -1,18 +1,16 @@
-## What
-<!-- kernel + variant, or tooling change -->
+## Phase
+<!-- e.g. Phase 2 (Optimize), Part B: softmax v1–v2, LayerNorm v1–v2, attention v1 -->
 
 ## Evidence
 - [ ] `pytest tests/` passes on my GPU (incl. sizes not divisible by the tile)
-- [ ] CSV row(s) added under `results/<gpu>/`
-- [ ] ncu report under `results/ncu/<gpu>/`
+- [ ] CSV rows added under `results/<gpu>/` for every variant
+- [ ] ncu reports under `results/ncu/<gpu>/` for every variant
 
-| GPU | dims | before (ms) | after (ms) | % peak | limiter |
-|---|---|---|---|---|---|
-|  |  |  |  |  |  |
-
-**Why it moved:** <!-- "moved from X to Y because <compute|memory|latency>-bound — ncu showed <metric>" -->
+| Kernel | Variant | GPU | dims | time (ms) | GFLOP/s or GB/s | % peak | % baseline | limiter | why it moved (one sentence, ncu metric) |
+|---|---|---|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |  |  |  |
 
 ## Reviewer checklist
 - [ ] Builds and tests pass on the reviewer's GPU
-- [ ] Benchmark reproduced on the reviewer's GPU
+- [ ] Benchmarks reproduced on the reviewer's GPU
 - [ ] Frozen interfaces unchanged (or `docs/DESIGN.md` updated)

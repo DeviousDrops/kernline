@@ -60,9 +60,20 @@ results/<gpu>/*.csv   committed measurements
 - **Model kernel descriptor** (`model/kernels/<kernel>.py`): `flops(dims)`, `bytes(dims, variant)`, `launch_cfg(dims, variant)`, `resources(variant)` (regs/smem from `nvcc --resource-usage`).
 
 ## Workflow
-- **Nobody pushes to `main`.** All work goes through a pull request from a branch named `<part>/<kernel>-<variant>` (e.g. `a/gemm-v2`, `b/softmax-v1`) or `<part>/<topic>` for tooling.
+- **One branch and one PR per person per phase.** Nobody pushes to `main`. Commit each kernel variant separately inside the phase branch, but open a single PR when the phase is done.
+
+  | Phase | Weeks | Part A branch | Part B branch |
+  |---|---|---|---|
+  | 1 Baseline: scaffold, tooling, v0 kernels | 1–2 | `a/phase1-baseline` | `b/phase1-baseline` |
+  | 2 Optimize: all variants + roofline evidence | 3–5 | `a/phase2-optimize` | `b/phase2-optimize` |
+  | 3 Model + transformer block | 6–7 | `a/phase3-model` | `b/phase3-model` |
+  | 4 Cache simulator | 8 | `a/phase4-sim` (index math only) | `b/phase4-sim` |
+
+- Cut each phase branch from an up-to-date `main` when the phase starts (`git switch main && git pull && git switch -c b/phase2-optimize`).
+- Optional: open the PR as a **draft** early (`gh pr create --draft`), so the partner can comment while you work. Mark it ready when the phase is done.
+- **Cross-dependencies:** B's attention needs A's GEMM (v0 in phase 1, best variant in phase 2). A merges their phase PR first, or at least the GEMM commits. B then runs `git rebase main` and finishes attention.
 - **The other person reviews and merges.** Authors never merge their own PRs. That review is how both learn both halves.
-- Each optimization PR fills in `.github/pull_request_template.md`: a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
+- Each phase PR fills in `.github/pull_request_template.md`. For every variant it needs a correctness pass, a CSV row from your GPU, an ncu report, and one sentence: *"moved from X to Y because <bound> — ncu showed <metric>"*.
 - Commits, PR descriptions, and review comments contain no AI/tool attribution lines (no `Co-Authored-By` trailers, no "generated with" footers).
 - Weekly sync: merge both GPUs' results and regenerate the plots.
 

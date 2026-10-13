@@ -17,5 +17,8 @@ You own softmax, LayerNorm, attention (naive unfused → optimized unfused), the
 | 7 | Hand the held-out results to A. Write the "why attention is memory-bound" analysis (arithmetic intensity vs sequence length, crossover point on each GPU). |
 | 8 | `sim/` (C++): address-replay trace generator (D5) + set-associative L1 per SM (128 B lines, 32 B sectors, LRU) + shared L2 (32 MB on both GPUs). Hit rate vs tile size for GEMM v0/v2/v3 and attention v0/v1. Cross-check with ncu hit rates and report the gap. |
 
-## Definition of done per step
-Correctness test passes → CSV row in `results/rtx4060_laptop/` → ncu report → one-sentence roofline explanation in the PR.
+## Branches and PRs
+One branch and one PR per phase: `b/phase1-baseline` (weeks 1–2), `b/phase2-optimize` (3–5), `b/phase3-model` (6–7), `b/phase4-sim` (8). A reviews and merges. You review A's `a/phase*` PRs (procedure in `DESIGN.md` → *Reviewing a PR*). Attention waits on A's GEMM: rebase on `main` after A's GEMM lands.
+
+## Definition of done per variant (one commit each)
+Correctness test passes → CSV row in `results/rtx4060_laptop/` → ncu report → one-sentence roofline explanation, collected into the phase PR's table.
