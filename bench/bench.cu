@@ -3,6 +3,7 @@
 // they come from Nsight Compute, not from a timing run. Clocks are the median NVML reading
 // taken while each timed kernel is in flight.
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -15,6 +16,7 @@
 
 static const int kWarmup = 3;
 static const float kWarmupMs = 500.0f;
+static const float kBatchMs = 5.0f;  // minimum length of one timed run
 static const int kRuns = 21;  // median of >= 20
 
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
@@ -63,17 +65,22 @@ int main(int argc, char** argv) {
     // Warm up for at least kWarmup launches *and* kWarmupMs: an idle laptop GPU needs a few
     // hundred ms to reach its boost clock, and NVML (notably under WSL2) reports the change late.
     float warm_ms = 0.0f;
-    for (int i = 0; i < kWarmup || warm_ms < kWarmupMs; ++i) {
+    int warm_launches = 0;
+    for (; warm_launches < kWarmup || warm_ms < kWarmupMs; ++warm_launches) {
         timer.start();
         CUDA_CHECK(fn(A, B, C, M, N, K, 0));
         warm_ms += timer.stop_ms();
     }
+    // Each timed run is a batch of back-to-back launches lasting >= kBatchMs. Timing a sub-ms
+    // kernel alone leaves the GPU idle between syncs (clocks sag) and puts launch/WSL jitter
+    // into the measurement; the batch keeps the GPU busy and amortizes both.
+    const int batch = std::max(1, (int)std::ceil(kBatchMs / (warm_ms / warm_launches)));
     std::vector<float> ms(kRuns);
     for (int i = 0; i < kRuns; ++i) {
         timer.start();
-        CUDA_CHECK(fn(A, B, C, M, N, K, 0));
-        clocks.sample();  // kernel still in flight: reads the clock it runs at
-        ms[i] = timer.stop_ms();
+        for (int b = 0; b < batch; ++b) CUDA_CHECK(fn(A, B, C, M, N, K, 0));
+        clocks.sample();  // kernels still in flight: reads the clock they run at
+        ms[i] = timer.stop_ms() / batch;
     }
     std::sort(ms.begin(), ms.end());
 
