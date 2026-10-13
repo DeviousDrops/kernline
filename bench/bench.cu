@@ -23,6 +23,7 @@ typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStr
 static const struct { const char* variant; GemmFn fn; } kGemm[] = {
     {"v0", gemm_v0},
     {"v1", gemm_v1},
+    {"v2", gemm_v2},
     {"cublas", gemm_cublas},
 };
 
