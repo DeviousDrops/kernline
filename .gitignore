@@ -1,10 +1,46 @@
+# Build output
 build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+*.o
+*.obj
+*.a
+*.so
+*.exe
+*.out
+*.ptx
+*.cubin
+*.fatbin
+tools/smoke/vadd
+
+# Python
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .pytest_cache/
+.ipynb_checkpoints/
+
+# Profiler output: keep only reports deliberately placed under results/
 *.ncu-rep
+*.nsys-rep
+*.qdrep
+*.sqlite
 !results/**/*.ncu-rep
-*.o
-*.so
-tools/smoke/vadd
+
+# Cache-sim traces (large, regenerate with sim/)
+sim/traces/
+*.trace
+*.trace.gz
+
+# Editors, OS, local tool settings
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+.claude/
+CLAUDE.local.md
