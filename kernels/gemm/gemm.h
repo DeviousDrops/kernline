@@ -10,11 +10,15 @@ __global__ void gemm_v2_kernel(const float* A, const float* B, float* C, int M, 
 
 const int kGemmV3Tile = 128;     // tile of C per block
 const int kGemmV3Threads = 256;  // 1D block; each thread owns an 8×8 sub-tile
-// float4 loads: needs K % 4 == 0, N % 4 == 0, and 16-byte-aligned A, B, C.
-__global__ void gemm_v3_kernel(const float* A, const float* B, float* C, int M, int N, int K);
+// float4 loads: needs K % 4 == 0, N % 4 == 0, and 16-byte-aligned A, B, C (and, when batched,
+// strides that are multiples of 4). gridDim.z = batch count; matrix z of the batch starts
+// z·stride floats past A, B, C. Strides default to 0, so a single GEMM launches as before.
+__global__ void gemm_v3_kernel(const float* A, const float* B, float* C, int M, int N, int K,
+                               long long strideA = 0, long long strideB = 0, long long strideC = 0);
 // Same kernel with scalar global loads, for every other shape.
 __global__ void gemm_v3_scalar_kernel(const float* A, const float* B, float* C, int M, int N,
-                                      int K);
+                                      int K, long long strideA = 0, long long strideB = 0,
+                                      long long strideC = 0);
 
 // v4: A and B are FP16, C is FP32.
 const int kGemmV4Tile = 128;     // tile of C per block

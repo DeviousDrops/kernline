@@ -13,6 +13,9 @@ int gemm_v0(const float* A, const float* B, float* C, int M, int N, int K, cudaS
 int gemm_v1(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v2(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v3(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
+// `batch` GEMMs in one launch; matrix z is A + z·strideA, B + z·strideB, C + z·strideC (floats).
+int gemm_v3_batched(const float* A, const float* B, float* C, int M, int N, int K, int batch,
+                    long long strideA, long long strideB, long long strideC, cudaStream_t s);
 // FP16 A and B, FP32 C (tensor cores, FP32 accumulation).
 int gemm_v4(const __half* A, const __half* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_cublas(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
@@ -32,6 +35,16 @@ int layernorm_v2(const float* x, const float* gamma, const float* beta, float* y
                  int cols, float eps, cudaStream_t s);
 int layernorm_v3(const float* x, const float* gamma, const float* beta, float* y, int rows,
                  int cols, float eps, cudaStream_t s);
+
+// O = softmax(Q·Kᵀ / sqrt(d)) · V, unfused. Q, K, V, O are [heads, N, d] (heads = batch × heads);
+// `work` must hold attention_workspace_bytes(heads, N, d) bytes: the N×N scores per head and Kᵀ.
+size_t attention_workspace_bytes(int heads, int N, int d);
+int attention_v0(const float* Q, const float* K, const float* V, float* O, float* work, int heads,
+                 int N, int d, cudaStream_t s);
+int attention_v1(const float* Q, const float* K, const float* V, float* O, float* work, int heads,
+                 int N, int d, cudaStream_t s);
+int attention_v2(const float* Q, const float* K, const float* V, float* O, float* work, int heads,
+                 int N, int d, cudaStream_t s);
 
 #ifdef __cplusplus
 }
