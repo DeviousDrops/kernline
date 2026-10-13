@@ -6,7 +6,7 @@ from harness import TOL, launch
 
 pytestmark = pytest.mark.gpu
 
-VARIANTS = ["v0", "v1", "v2", "cublas"]
+VARIANTS = ["v0", "v1", "v2", "v3", "cublas"]
 # (M, N, K): C is M×N. Includes degenerate, non-square, and sizes no tile divides.
 DIMS = [(1, 1, 1), (1, 37, 5), (33, 1, 7), (16, 16, 16), (257, 129, 65), (100, 300, 200),
         (1024, 1024, 1024)]

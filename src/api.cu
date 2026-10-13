@@ -1,4 +1,5 @@
 #include "src/api.h"
+#include <cstdint>
 #include <cublas_v2.h>
 #include "kernels/gemm/gemm.h"
 
@@ -23,6 +24,17 @@ extern "C" int gemm_v2(const float* A, const float* B, float* C, int M, int N, i
     dim3 block(kGemmV2Tile, kGemmV2Tile);
     dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
     gemm_v2_kernel<<<grid, block, 0, s>>>(A, B, C, M, N, K);
+    return cudaGetLastError();
+}
+
+extern "C" int gemm_v3(const float* A, const float* B, float* C, int M, int N, int K,
+                       cudaStream_t s) {
+    dim3 grid((N + kGemmV3Tile - 1) / kGemmV3Tile, (M + kGemmV3Tile - 1) / kGemmV3Tile);
+    const bool aligned = (((uintptr_t)A | (uintptr_t)B | (uintptr_t)C) & 15) == 0;
+    if (aligned && K % 4 == 0 && N % 4 == 0)
+        gemm_v3_kernel<<<grid, kGemmV3Threads, 0, s>>>(A, B, C, M, N, K);
+    else
+        gemm_v3_scalar_kernel<<<grid, kGemmV3Threads, 0, s>>>(A, B, C, M, N, K);
     return cudaGetLastError();
 }
 

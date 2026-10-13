@@ -11,6 +11,7 @@ extern "C" {
 int gemm_v0(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v1(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v2(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
+int gemm_v3(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_cublas(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 
 #ifdef __cplusplus

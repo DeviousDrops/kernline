@@ -24,6 +24,7 @@ static const struct { const char* variant; GemmFn fn; } kGemm[] = {
     {"v0", gemm_v0},
     {"v1", gemm_v1},
     {"v2", gemm_v2},
+    {"v3", gemm_v3},
     {"cublas", gemm_cublas},
 };
 
