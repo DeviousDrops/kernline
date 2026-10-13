@@ -20,20 +20,32 @@ static const float kBatchMs = 5.0f;  // minimum length of one timed run
 static const int kRuns = 21;  // median of >= 20
 
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
-static const struct { const char* variant; GemmFn fn; } kGemm[] = {
+// v4 takes FP16 A and B: same buffers, filled as halves (see device_random).
+static int gemm_v4_fp16(const float* A, const float* B, float* C, int M, int N, int K,
+                        cudaStream_t s) {
+    return gemm_v4((const __half*)A, (const __half*)B, C, M, N, K, s);
+}
+static const struct { const char* variant; GemmFn fn; bool fp16_in = false; } kGemm[] = {
     {"v0", gemm_v0},
     {"v1", gemm_v1},
     {"v2", gemm_v2},
     {"v3", gemm_v3},
+    {"v4", gemm_v4_fp16, true},
     {"cublas", gemm_cublas},
 };
 
-static float* device_random(size_t n) {
+// n random values in [-0.5, 0.5) on the device, stored as FP32 or (fp16) as halves.
+static float* device_random(size_t n, bool fp16 = false) {
     std::vector<float> host(n);
     for (float& x : host) x = (float)std::rand() / RAND_MAX - 0.5f;
+    std::vector<__half> half;
+    if (fp16)
+        for (float x : host) half.push_back(__float2half(x));
+    const void* src = fp16 ? (const void*)half.data() : host.data();
+    const size_t bytes = n * (fp16 ? sizeof(__half) : sizeof(float));
     float* dev;
-    CUDA_CHECK(cudaMalloc(&dev, n * sizeof(float)));
-    CUDA_CHECK(cudaMemcpy(dev, host.data(), n * sizeof(float), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&dev, bytes));
+    CUDA_CHECK(cudaMemcpy(dev, src, bytes, cudaMemcpyHostToDevice));
     return dev;
 }
 
@@ -53,14 +65,15 @@ int main(int argc, char** argv) {
     if (argc != 6 || std::strcmp(argv[1], "gemm")) return usage();
 
     GemmFn fn = nullptr;
+    bool fp16_in = false;
     for (const auto& e : kGemm)
-        if (!std::strcmp(argv[2], e.variant)) fn = e.fn;
+        if (!std::strcmp(argv[2], e.variant)) fn = e.fn, fp16_in = e.fp16_in;
     const int M = std::atoi(argv[3]), N = std::atoi(argv[4]), K = std::atoi(argv[5]);
     if (!fn || M <= 0 || N <= 0 || K <= 0) return usage();
 
     const size_t m = M, n = N, k = K;
-    float* A = device_random(m * k);
-    float* B = device_random(k * n);
+    float* A = device_random(m * k, fp16_in);
+    float* B = device_random(k * n, fp16_in);
     float* C = device_random(m * n);
 
     GpuTimer timer;
@@ -89,7 +102,8 @@ int main(int argc, char** argv) {
 
     const GpuInfo gpu = gpu_info(clocks);
     const double flop = 2.0 * m * n * k;                          // one mul + one add per term
-    const double bytes = 4.0 * (m * k + k * n + m * n);           // read A and B once, write C once
+    // read A and B once, write C once
+    const double bytes = (fp16_in ? 2.0 : 4.0) * (m * k + k * n) + 4.0 * (m * n);
     std::printf("%s,%d,%d,gemm,%s,%dx%dx%d,%.4f,%.0f,%.0f,,,\n", gpu.name.c_str(),
                 gpu.sm_clk_mhz, gpu.mem_clk_mhz, argv[2], M, N, K, ms[kRuns / 2], flop, bytes);
 

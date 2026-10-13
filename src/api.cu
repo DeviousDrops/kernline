@@ -38,6 +38,17 @@ extern "C" int gemm_v3(const float* A, const float* B, float* C, int M, int N, i
     return cudaGetLastError();
 }
 
+extern "C" int gemm_v4(const __half* A, const __half* B, float* C, int M, int N, int K,
+                       cudaStream_t s) {
+    dim3 grid((N + kGemmV4Tile - 1) / kGemmV4Tile, (M + kGemmV4Tile - 1) / kGemmV4Tile);
+    const bool aligned = (((uintptr_t)A | (uintptr_t)B) & 15) == 0 && ((uintptr_t)C & 31) == 0;
+    if (aligned && K % 8 == 0 && N % 8 == 0)
+        gemm_v4_kernel<<<grid, kGemmV4Threads, 0, s>>>(A, B, C, M, N, K);
+    else
+        gemm_v4_scalar_kernel<<<grid, kGemmV4Threads, 0, s>>>(A, B, C, M, N, K);
+    return cudaGetLastError();
+}
+
 // Baseline (D9). cuBLAS is column-major: a row-major M×N matrix is its N×M transpose, so
 // C = A·B becomes Cᵀ = Bᵀ·Aᵀ, i.e. the same buffers with the operands swapped.
 extern "C" int gemm_cublas(const float* A, const float* B, float* C, int M, int N, int K,

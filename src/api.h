@@ -1,4 +1,5 @@
 #pragma once
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 // Stable C ABI of libkernels.so (docs/DESIGN.md, "Frozen interfaces").
@@ -12,6 +13,8 @@ int gemm_v0(const float* A, const float* B, float* C, int M, int N, int K, cudaS
 int gemm_v1(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v2(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_v3(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
+// FP16 A and B, FP32 C (tensor cores, FP32 accumulation).
+int gemm_v4(const __half* A, const __half* B, float* C, int M, int N, int K, cudaStream_t s);
 int gemm_cublas(const float* A, const float* B, float* C, int M, int N, int K, cudaStream_t s);
 
 #ifdef __cplusplus
