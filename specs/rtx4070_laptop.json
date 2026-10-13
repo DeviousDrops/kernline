@@ -1,0 +1,17 @@
+{
+  "gpu": "rtx4070_laptop",
+  "name": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "chip": "AD106",
+  "compute_cap": "8.9",
+  "sm_count": 36,
+  "memory_total_mib": 8188,
+  "clocks_max_sm_mhz": 3105,
+  "clocks_max_mem_mhz": 8001,
+  "l2_bytes": 33554432,
+  "dram_bus_bits": 128,
+  "dram_bw_nominal_gbs": 256,
+  "driver": "615.78.08",
+  "cuda": "13.4.2",
+  "os": "CachyOS, native Linux (not WSL)",
+  "ceilings": null
+}
