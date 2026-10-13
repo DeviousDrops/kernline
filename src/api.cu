@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <cublas_v2.h>
 #include "kernels/gemm/gemm.h"
+#include "kernels/layernorm/layernorm.h"
+#include "kernels/softmax/softmax.h"
 
 extern "C" int gemm_v0(const float* A, const float* B, float* C, int M, int N, int K,
                        cudaStream_t s) {
@@ -60,4 +62,20 @@ extern "C" int gemm_cublas(const float* A, const float* B, float* C, int M, int 
     cublasStatus_t st = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &one, B, N, A, K,
                                     &zero, C, N);
     return st == CUBLAS_STATUS_SUCCESS ? cudaSuccess : cudaErrorUnknown;
+}
+
+// ---- softmax / layernorm: row-wise over the last dim of a rows×cols matrix
+
+extern "C" int softmax_v0(const float* x, float* y, int rows, int cols, cudaStream_t s) {
+    const int block = 128;
+    softmax_v0_kernel<<<(rows + block - 1) / block, block, 0, s>>>(x, y, rows, cols);
+    return cudaGetLastError();
+}
+
+extern "C" int layernorm_v0(const float* x, const float* gamma, const float* beta, float* y,
+                            int rows, int cols, float eps, cudaStream_t s) {
+    const int block = 128;
+    layernorm_v0_kernel<<<(rows + block - 1) / block, block, 0, s>>>(x, gamma, beta, y, rows,
+                                                                      cols, eps);
+    return cudaGetLastError();
 }
