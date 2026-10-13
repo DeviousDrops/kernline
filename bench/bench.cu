@@ -22,6 +22,7 @@ static const int kRuns = 21;  // median of >= 20
 typedef int (*GemmFn)(const float*, const float*, float*, int, int, int, cudaStream_t);
 static const struct { const char* variant; GemmFn fn; } kGemm[] = {
     {"v0", gemm_v0},
+    {"v1", gemm_v1},
     {"cublas", gemm_cublas},
 };
 

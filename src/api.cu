@@ -10,6 +10,14 @@ extern "C" int gemm_v0(const float* A, const float* B, float* C, int M, int N, i
     return cudaGetLastError();
 }
 
+extern "C" int gemm_v1(const float* A, const float* B, float* C, int M, int N, int K,
+                       cudaStream_t s) {
+    dim3 block(32, 8);  // x = columns: one warp per row of C
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
+    gemm_v1_kernel<<<grid, block, 0, s>>>(A, B, C, M, N, K);
+    return cudaGetLastError();
+}
+
 // Baseline (D9). cuBLAS is column-major: a row-major M×N matrix is its N×M transpose, so
 // C = A·B becomes Cᵀ = Bᵀ·Aᵀ, i.e. the same buffers with the operands swapped.
 extern "C" int gemm_cublas(const float* A, const float* B, float* C, int M, int N, int K,
