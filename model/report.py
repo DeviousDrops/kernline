@@ -148,11 +148,70 @@ def block_table(gpu_name: str, gpu, p) -> str:
         meas_steps = sum(float(r["time_ms"]) for r in steps)
         eager = float(vs["torch"]["time_ms"]) if "torch" in vs else float("nan")
         graph = float(vs["torch_graph"]["time_ms"]) if "torch_graph" in vs else float("nan")
+        graph_cell = f"{graph:.3f}" if graph == graph else "— (out of memory)"
         lines.append(f"| {dims} | {total:.3f} | {meas_steps:.3f} | {sums['T0']:.3f} | {sums['T1']:.3f} "
                      f"| {sums['T2']:.3f} | {sums['T2'] / total - 1:+.0%} | {eager:.3f} | "
-                     f"{graph if graph == graph else '—'} | {eager / total:.2f}× |")
+                     f"{graph_cell} | {eager / total:.2f}× |")
         detail.append((dims, rows_detail))
     dims, rows_detail = detail[-1]
     lines += ["", f"Per step at {dims}:", "", "| step | measured | model T2 | error | limiter |",
               "|---|---|---|---|---|"] + rows_detail
     return "\n".join(lines)
+
+
+# Categorical slots 1-5 of the reference palette (validated light-mode: CVD and normal-vision
+# separation pass; three slots sit below 3:1 on the surface, so every kernel also gets its own
+# marker shape and a legend entry, and results/model/<gpu>_predictions.csv is the table view).
+KERNEL_STYLE = {
+    "gemm": ("#2a78d6", "o"), "attention": ("#eb6834", "s"), "softmax": ("#1baf7a", "^"),
+    "layernorm": ("#eda100", "D"), "block": ("#e87ba4", "v"),
+}
+SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
+
+
+def scatter(gpu: str, rows, preds) -> Path:
+    """analysis/plots/model_<gpu>.png: predicted vs measured per tier, one panel each."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.2), facecolor=SURFACE, sharey=True)
+    meas = [r.time_ms for r in rows]
+    lo, hi = min(meas) / 3, max(meas) * 3
+    for ax, tier in zip(axes, tiers.TIERS):
+        ax.set_facecolor(SURFACE)
+        ax.plot([lo, hi], [lo, hi], color=INK_2, lw=1.25, zorder=1)
+        ax.fill_between([lo, hi], [lo / 1.25, hi / 1.25], [lo * 1.25, hi * 1.25], color=GRID,
+                        lw=0, zorder=0)
+        for kernel, (color, marker) in KERNEL_STYLE.items():
+            pts = [(r.time_ms, pr[tier] * 1e3) for r, pr in zip(rows, preds) if r.kernel == kernel]
+            if pts:
+                ax.scatter(*zip(*pts), s=36, marker=marker, color=color, edgecolors=SURFACE,
+                           linewidths=1.5, zorder=3, label=kernel)
+        med = statistics.median(abs(ratio(pr, r, tier) - 1) for r, pr in zip(rows, preds))
+        ax.set_title(f"{tier}: median |error| {med:.0%}", loc="left", fontsize=10, color=INK)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(lo, hi)
+        ax.grid(True, which="major", color=GRID, lw=0.8)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            ax.spines[side].set_color(INK_3)
+        ax.tick_params(colors=INK_2, labelsize=8)
+        ax.set_xlabel("Measured time (ms)", fontsize=9, color=INK_2)
+    axes[0].set_ylabel("Predicted time (ms)", fontsize=9, color=INK_2)
+    axes[-1].legend(loc="lower right", fontsize=8, frameon=False, labelcolor=INK_2)
+    tuned = "tuned on these rows" if gpu == "rtx4070_laptop" else "held out: no refitting"
+    fig.suptitle(f"Model vs measured, {gpu} ({tuned}), {len(rows)} rows", fontsize=12, color=INK,
+                 x=0.01, ha="left")
+    fig.text(0.01, 0.01, "line = perfect prediction · band = within ±25% · one point per result "
+             "row, predicted at the clock it ran at", fontsize=7.5, color=INK_3)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
+    path = ROOT / "analysis" / "plots" / f"model_{gpu}.png"
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path

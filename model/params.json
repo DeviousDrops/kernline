@@ -1,0 +1,11 @@
+{
+ "l2_eff": 0.85,
+ "launch_us": 2.0,
+ "ldg_per_clk": 0.5,
+ "lds_per_clk": 0.65,
+ "narrow_eff": 0.3,
+ "fma_eff": 0.625,
+ "tc_eff": 0.425,
+ "sat_warps": 12,
+ "tuned_on": "rtx4070_laptop, 173 rows, median |error| 4.0% at T2"
+}
