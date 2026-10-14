@@ -86,7 +86,14 @@ def main() -> int:
     with torch.inference_mode():
         block = make_block(B, S, D, H)
         for variant, timer in (("torch", time_eager), ("torch_graph", time_launch)):
-            ms, sm, mem = timer(block)
+            torch.cuda.empty_cache()
+            try:
+                ms, sm, mem = timer(block)
+            except torch.OutOfMemoryError:
+                # A captured graph keeps every intermediate alive at once; at B·S = 16k tokens
+                # that no longer fits in 8 GB. Skip the row rather than the whole suite.
+                print(f"{variant} {dims}: out of memory, row skipped", file=sys.stderr)
+                continue
             print(f"{gpu},{sm},{mem},block,{variant},{dims},{ms:.4f},,,,,")
     return 0
 
