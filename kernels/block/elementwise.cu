@@ -20,24 +20,24 @@ __global__ void gelu_inplace_kernel(float* x, long long n) {
     }
 }
 
+// One block row per token (blockIdx.y), threads across its columns: 32-bit index math with two
+// divisions per element. A flat 64-bit index needs five 64-bit divisions per element, which made
+// this kernel instruction-bound at about a sixth of L2 bandwidth.
 __global__ void split_heads_kernel(const float* qkv, float* q, float* k, float* v, int B, int S,
                                    int H, int d) {
-    const long long D = (long long)H * d, n = (long long)B * S * D;
-    float* out[3] = {q, k, v};
-    for (long long i = tid(); i < 3 * n; i += stride()) {
-        const int which = (int)(i / n);
-        const long long j = i % n;  // index into [B, H, S, d]
-        const int e = (int)(j % d), s = (int)(j / d % S), h = (int)(j / ((long long)d * S) % H);
-        const long long b = j / (D * S);
-        out[which][j] = qkv[(b * S + s) * 3 * D + which * D + (long long)h * d + e];
+    const int D = H * d, t = blockIdx.y, b = t / S, s = t - b * S;
+    const float* row = qkv + (size_t)t * 3 * D;
+    for (int c = blockIdx.x * blockDim.x + threadIdx.x; c < 3 * D; c += gridDim.x * blockDim.x) {
+        const int which = c / D, hc = c - which * D, h = hc / d, e = hc - h * d;
+        float* out = which == 0 ? q : which == 1 ? k : v;
+        out[(((size_t)b * H + h) * S + s) * d + e] = row[c];
     }
 }
 
 __global__ void merge_heads_kernel(const float* o, float* y, int B, int S, int H, int d) {
-    const long long D = (long long)H * d, n = (long long)B * S * D;
-    for (long long i = tid(); i < n; i += stride()) {  // i indexes y: [B, S, H, d]
-        const int e = (int)(i % d), h = (int)(i / d % H), s = (int)(i / D % S);
-        const long long b = i / (D * S);
-        y[i] = o[((b * H + h) * S + s) * d + e];
+    const int D = H * d, t = blockIdx.y, b = t / S, s = t - b * S;
+    for (int c = blockIdx.x * blockDim.x + threadIdx.x; c < D; c += gridDim.x * blockDim.x) {
+        const int h = c / d, e = c - h * d;
+        y[(size_t)t * D + c] = o[(((size_t)b * H + h) * S + s) * d + e];
     }
 }

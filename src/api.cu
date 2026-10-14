@@ -314,11 +314,11 @@ extern "C" int transformer_block_step(int step, float* x, const float* ln1_g, co
         case 0: return layernorm_v2(x, ln1_g, ln1_b, h, T, D, eps, s);
         case 1: return gemm_v3(h, Wqkv, qkv, T, 3 * D, D, s);
         case 2:
-            split_heads_kernel<<<elementwise_grid(3 * TD), 256, 0, s>>>(qkv, q, k, v, B, S, H, d);
+            split_heads_kernel<<<dim3((3 * D + 255) / 256, T), 256, 0, s>>>(qkv, q, k, v, B, S, H, d);
             return cudaGetLastError();
         case 3: return attention_v2(q, k, v, o, attn, B * H, S, d, s);
         case 4:
-            merge_heads_kernel<<<elementwise_grid(TD), 256, 0, s>>>(o, a, B, S, H, d);
+            merge_heads_kernel<<<dim3((D + 255) / 256, T), 256, 0, s>>>(o, a, B, S, H, d);
             return cudaGetLastError();
         case 5: return gemm_v3(a, Wo, p, T, D, D, s);
         case 6:
