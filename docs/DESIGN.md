@@ -45,9 +45,10 @@ block/block.cu        end-to-end transformer block runner (D4)
 tests/                pytest via ctypes vs torch, incl. sizes not divisible by tile
 tools/smoke/          day-1 go/no-go check
 tools/profile.sh      ncu wrapper → results/ncu/<gpu>/*.ncu-repz + metrics CSV
+tools/suite.sh        full bench + ncu suite (D8): every kernel, variant and model shape
 tools/ceilings/       microbenchmarks → specs/<gpu>.json
 analysis/roofline.py  plots from results/*.csv, one panel per GPU
-model/                Python performance model (Part A)
+model/                Python performance model (Part A); write-up in analysis/model.md
 sim/                  C++ cache simulator (Part B)
 specs/<gpu>.json      measured ceilings + static specs
 results/<gpu>/*.csv   committed measurements

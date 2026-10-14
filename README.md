@@ -42,12 +42,15 @@ tools/smoke/run.sh   # go/no-go: builds, runs, and profiles a vector-add
 
 ## Build, test, profile
 ```sh
-cmake -B build -G Ninja && cmake --build build      # libkernels.so, bench, ceilings
-.venv/bin/python -m pytest tests/                    # every variant vs PyTorch + tooling tests
+cmake -B build -G Ninja && cmake --build build      # libkernels.so, bench, block, ceilings
+.venv/bin/python -m pytest tests/                    # every variant vs PyTorch + tooling + model tests
 tools/ceilings/run.sh                                # measure this GPU's roofs → specs/<gpu>.json
 ./build/bench gemm v0 4096 4096 4096                 # CSV row: time, FLOP, bytes, clocks
 tools/profile.sh gemm v0 4096 4096 4096              # ncu report + results/<gpu>/gemm.csv row
+./build/block 2 1024                                 # transformer block, per step and total (D4)
+tools/suite.sh                                       # everything above, every kernel and shape (D8)
 .venv/bin/python analysis/roofline.py                # analysis/plots/<kernel>.png from results/
+.venv/bin/python -m model validate --gpu rtx4060_laptop   # held-out model errors (analysis/model.md)
 ```
 Run benchmarks and ceilings on an idle, plugged-in laptop: clocks follow the power limit, and every row records the clock it ran at.
 
