@@ -1,0 +1,150 @@
+{
+ "add_inplace_kernel": {
+  "regs": 28,
+  "smem": 0
+ },
+ "gelu_inplace_kernel": {
+  "regs": 24,
+  "smem": 0
+ },
+ "gemm_v0_kernel": {
+  "regs": 40,
+  "smem": 0
+ },
+ "gemm_v1_kernel": {
+  "regs": 40,
+  "smem": 0
+ },
+ "gemm_v2_kernel": {
+  "regs": 38,
+  "smem": 8192
+ },
+ "gemm_v3_kernel": {
+  "regs": 121,
+  "smem": 8320
+ },
+ "gemm_v3_scalar_kernel": {
+  "regs": 117,
+  "smem": 8320
+ },
+ "gemm_v4_kernel": {
+  "regs": 127,
+  "smem": 35840
+ },
+ "gemm_v4_scalar_kernel": {
+  "regs": 126,
+  "smem": 35840
+ },
+ "layernorm_v0_kernel": {
+  "regs": 40,
+  "smem": 0
+ },
+ "layernorm_v1_kernel": {
+  "regs": 40,
+  "smem": 0
+ },
+ "layernorm_v1_scalar_kernel": {
+  "regs": 39,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<-1>": {
+  "regs": 28,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<0>": {
+  "regs": 34,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<16>": {
+  "regs": 96,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<1>": {
+  "regs": 25,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<2>": {
+  "regs": 32,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<4>": {
+  "regs": 40,
+  "smem": 0
+ },
+ "layernorm_v2_kernel<8>": {
+  "regs": 56,
+  "smem": 0
+ },
+ "layernorm_v3_kernel<false>": {
+  "regs": 24,
+  "smem": 128
+ },
+ "layernorm_v3_kernel<true>": {
+  "regs": 40,
+  "smem": 128
+ },
+ "merge_heads_kernel": {
+  "regs": 17,
+  "smem": 0
+ },
+ "scale_kernel": {
+  "regs": 28,
+  "smem": 0
+ },
+ "softmax_v0_kernel": {
+  "regs": 38,
+  "smem": 0
+ },
+ "softmax_v1_kernel": {
+  "regs": 38,
+  "smem": 0
+ },
+ "softmax_v1_scalar_kernel": {
+  "regs": 39,
+  "smem": 0
+ },
+ "softmax_v2_kernel<-1>": {
+  "regs": 30,
+  "smem": 0
+ },
+ "softmax_v2_kernel<0>": {
+  "regs": 38,
+  "smem": 0
+ },
+ "softmax_v2_kernel<16>": {
+  "regs": 80,
+  "smem": 0
+ },
+ "softmax_v2_kernel<1>": {
+  "regs": 22,
+  "smem": 0
+ },
+ "softmax_v2_kernel<2>": {
+  "regs": 28,
+  "smem": 0
+ },
+ "softmax_v2_kernel<4>": {
+  "regs": 40,
+  "smem": 0
+ },
+ "softmax_v2_kernel<8>": {
+  "regs": 48,
+  "smem": 0
+ },
+ "softmax_v3_kernel<false>": {
+  "regs": 24,
+  "smem": 128
+ },
+ "softmax_v3_kernel<true>": {
+  "regs": 40,
+  "smem": 128
+ },
+ "split_heads_kernel": {
+  "regs": 26,
+  "smem": 0
+ },
+ "transpose_scale_kernel": {
+  "regs": 15,
+  "smem": 4224
+ }
+}
