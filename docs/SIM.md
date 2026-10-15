@@ -41,7 +41,7 @@ Generators take tile parameters (v2: T; v3: BM, BN, BK, TM), so sweeps can inclu
 - Blocks go to SMs in `blockIdx` order (x fastest, then y, then z), up to the resident-blocks limit per SM. A finished block's slot takes the next block.
 - Within an SM, resident warps issue one memory instruction each in turn. SMs take turns at the L2 the same way.
 - A block finishes when its warps have issued all their ops. Time is counted in issued instructions, not cycles.
-- Resident blocks per SM are the minimum of ncu's `launch__occupancy_limit_{blocks,registers,shared_mem,warps}` for that kernel, from its committed report. Simulated-only tiles use the occupancy rule (threads, registers, shared memory; limits from `specs/<gpu>.json`). The SM count (24 or 36) selects the GPU.
+- Resident blocks per SM are the minimum of ncu's `launch__occupancy_limit_{blocks,registers,shared_mem,warps}` for that kernel, from its committed report. Simulated-only tiles are never compiled, so they have no register count: they keep their kernel's measured warps per SM, capped by the Ada per-SM limits (24 blocks, 48 warps, 100 KB of shared memory, the same on both GPUs per `specs/<gpu>.json`), and their rows say `simulated_only`. The SM count (24 or 36) selects the GPU.
 
 Composite calls (attention) are a list of launches in the real launch order: per-head GEMMs for v0/v1, one batched grid for v2. Caches start cold for every launch, as under ncu's default `--cache-control all`, which flushes before each profiled kernel.
 

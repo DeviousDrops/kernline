@@ -17,7 +17,9 @@ struct LaunchShape {
 // choice isn't predictable (gemm_v3 needs 2 x 9.1 KB and gets 64 KB), so real configs are
 // looked up, not computed. Launches the table doesn't have (simulated-only tiles) keep their
 // kernel's real warps per SM and carveout where the shared memory allows, else take the next
-// carveout size that fits (docs/SIM.md, "Cache model").
+// carveout size that fits (docs/SIM.md, "Cache model"). Simulated-only tiles are never compiled,
+// so they have no register count: the real kernel's warps per SM stand in for its register
+// limit. A shape that fits no block on an SM throws std::invalid_argument.
 class LaunchConfig {
   public:
     explicit LaunchConfig(const std::string& csv_path);  // "" = empty table

@@ -31,6 +31,10 @@ LaunchShape LaunchConfig::shape(const Generator& g) const {
     const int warps = g.warps();
     int resident = std::min(24, 48 / warps);
     if (g.smem_per_block) resident = std::min(resident, (100 << 10) / g.smem_per_block);
+    if (resident < 1)
+        throw std::invalid_argument(g.name + " doesn't fit on an SM: " + std::to_string(g.threads) +
+                                    " threads, " + std::to_string(g.smem_per_block) +
+                                    " bytes of shared memory");
     uint64_t carveout = 0;
     bool real = false;
     for (const Row& r : rows_)

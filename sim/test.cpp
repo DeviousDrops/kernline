@@ -2,6 +2,7 @@
 // every check passes; each failure prints file:line and the check.
 #include <array>
 #include <cstdio>
+#include <stdexcept>
 #include <vector>
 #include "sim/cache.h"
 #include "sim/launch_config.h"
@@ -173,6 +174,16 @@ static void test_launch_config() {
     big.smem_per_block = 40 << 10;
     s = cfg.shape(big);
     CHECK(!s.measured && s.resident == 2 && s.carveout_bytes == (100u << 10));
+    G huge = real;  // 101 KB of shared memory: no block fits an SM, which must not pass silently
+    huge.name = "no_such_kernel";
+    huge.smem_per_block = 101 << 10;
+    bool threw = false;
+    try {
+        cfg.shape(huge);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    CHECK(threw);
 }
 
 int main() {
