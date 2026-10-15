@@ -72,3 +72,52 @@ def test_gemm_v3_stores_two_rows_per_warp():
     assert (nbytes, store) == (16, True)
     assert lanes == [f"C+{(256 + (6 + l // 16) * 8 + 1) * 1024 + 128 + 64 + (l % 16) * 4}"
                      for l in range(32)]
+
+
+# Buffers in bench order: Q, K, V, O, work (S = work, then Kt = work + heads*N*N floats).
+
+def test_transpose_reads_k_rows_writes_kt_columns():
+    # kernels/attention/helpers.cu, block (32, 8), 4 rows per thread. K is N x d = 256 x 64 per
+    # head: gridDim = (2, 8, 12). Block 39 = (1, 3, 2); warp 5 = threadIdx.y 5.
+    (_, nbytes, store, _), lanes = op("attention", "v1", "12x256x64", 0, 39, 5, 2)
+    assert (nbytes, store) == (4, False)
+    assert lanes == [f"K+{2 * 256 * 64 + (96 + 5 + 16) * 64 + 32 + l}" for l in range(32)]
+    (_, _, store, _), lanes = op("attention", "v1", "12x256x64", 0, 39, 5, 6)
+    kt = 12 * 256 * 256
+    assert store and lanes == [f"work+{kt + 2 * 256 * 64 + (32 + 5 + 16) * 256 + 96 + l}" for l in range(32)]
+
+
+def test_softmax_v2_cached_row_per_warp():
+    # N = 256 -> softmax_v2_kernel<2> (launch 13 of v1), 8 rows per block, in place on S.
+    (_, nbytes, store, _), lanes = op("attention", "v1", "12x256x64", 13, 10, 3, 1)
+    assert (nbytes, store) == (16, False)
+    assert lanes == [f"work+{83 * 256 + 128 + 4 * l}" for l in range(32)]
+    (_, _, store, _), lanes2 = op("attention", "v1", "12x256x64", 13, 10, 3, 3)
+    assert store and lanes2 == lanes
+
+
+def test_softmax_v3_block_per_row():
+    # N = 4096 -> softmax_v3_kernel<1> (launch 2 of v2), 256 threads, 4 float4 per thread per pass.
+    (_, nbytes, store, _), lanes = op("attention", "v2", "12x4096x64", 2, 7, 2, 5)
+    assert (nbytes, store) == (16, True)
+    assert lanes == [f"work+{7 * 4096 + 4 * (64 + l + 256)}" for l in range(32)]
+
+
+def test_scale_and_softmax_v0():
+    # v0: launch 13 = scale_kernel (grid 1024 x 256, grid-stride), 14 = softmax_v0_kernel.
+    _, lanes = op("attention", "v0", "12x256x64", 13, 3, 1, 0)
+    assert lanes == [f"work+{3 * 256 + 32 + l}" for l in range(32)]
+    (_, _, store, _), lanes = op("attention", "v0", "12x256x64", 13, 3, 1, 5)
+    assert store and lanes == [f"work+{3 * 256 + 32 + l + 2 * 1024 * 256}" for l in range(32)]
+    # softmax_v0: one row per thread; op 2*256 + 2*10 + 1 is pass 3's store of column 10.
+    (_, _, store, _), lanes = op("attention", "v0", "12x256x64", 14, 2, 1, 533)
+    assert store and lanes == [f"work+{(288 + l) * 256 + 10}" for l in range(32)]
+
+
+def test_attention_v2_batches_pv_and_masks_the_empty_half():
+    # P·V: N x 64 output, so the v3 tile's second column half (h = 1) has no columns: no lane
+    # stores (mask 0). Launch 3; gridDim = (1, 2, 12), so block (0, by=1, z=4) = 1 + 2*4 = 9.
+    (mask, *_), _ = op("attention", "v2", "12x256x64", 3, 1 + 2 * 4, 0, 2 * 32 + 1)
+    assert mask == 0
+    (_, _, _, operand), lanes = op("attention", "v2", "12x256x64", 3, 1 + 2 * 4, 0, 0)
+    assert operand == 0 and lanes[0] == f"work+{4 * 256 * 256 + 128 * 256}"

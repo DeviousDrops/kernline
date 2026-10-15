@@ -2,6 +2,7 @@
 // simulated L1s and L2 (docs/SIM.md) and print a CSV header and one row per kernel launch.
 //
 //   gemm v0|v2|v3 MxNxK
+//   attention v0|v1|v2 headsxNxd
 //   --gpu NAME              gpu column (default rtx4060_laptop)
 //   --sms N                 SM count (default 24; the 4070 Laptop has 36)
 //   --launch-config PATH    ncu-measured resident blocks and carveouts
@@ -53,7 +54,8 @@ static Launches build(const std::string& kernel, const std::string& variant,
         }
         return out;
     }
-    throw std::invalid_argument("usage: cachesim gemm v0|v2|v3 MxNxK [options]");
+    if (kernel == "attention" && d.size() == 3) return attention(variant, d[0], d[1], d[2], buf);
+    throw std::invalid_argument("usage: cachesim gemm v0|v2|v3 MxNxK | attention v0|v1|v2 headsxNxd [options]");
 }
 
 static unsigned long long u(uint64_t x) { return (unsigned long long)x; }
