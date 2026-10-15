@@ -76,8 +76,8 @@ Nobody pushes to `main`. Work happens on **branches cut around real units of wor
 | 4 | `a/gemm` | A | GEMM v1 coalesced · v2 smem tiling · v3 register tiling · v4 WMMA (stretch) · results + ncu per variant | 2–5 | Gate 1 | **Gate 2** |
 | 5 | `b/reductions` | B | softmax v0 · v1 · v2, LayerNorm v0 · v1 · v2 · results + ncu per variant | 2–4 | Gate 1 | **Gate 2** |
 | 6 | `b/attention` | B | attention v0 (unfused, GEMM v0) · v1 (best GEMM + fused scale + softmax v2) · sequence-length sweep · memory-bound analysis | 2–5 | Gate 1 (rebase on #4, #5 before opening the PR) | **Gate 2** |
-| 7 | `b/model-inputs` | B | model descriptors for softmax/LN/attention · full bench + ncu suite on the 4060 Laptop incl. A's GEMMs (held-out data) | 6 | Gate 2 | **Gate 3** |
-| 8 | `a/model` | A | spec loader · occupancy calc · T0/T1/T2 tiers · GEMM descriptors · 4070 tuning + full suite · transformer-block runner · held-out validation | 5–7 | Gate 1 (open PR after #7) | **Gate 3** |
+| 7 | `b/model-inputs` | B | full bench + ncu suite (`tools/suite.sh`) on the 4060 Laptop incl. A's GEMMs (held-out data) · attention write-up corrections | 6 | Gate 2 | **Gate 3** |
+| 8 | `a/model` | A | spec loader · occupancy calc · T0/T1/T2 tiers · descriptors for every kernel (GEMM, softmax/LN, attention, block) · 4070 tuning · held-out validation. The transformer-block runner, `tools/suite.sh` and the 4070 suite merged first as `a/block` (#10) | 5–7 | Gate 1 (open PR after #7) | **Gate 3** |
 | 9 | `b/sim` | B | address-replay generator · L1 · L2 · tiling experiments · ncu cross-check | 7–8 | Gate 2 | final PR |
 | 10 | `results` | A opens, both commit | README tables, plots, "who did what" | 8 | Gate 3 (+ #9 if done) | — |
 
