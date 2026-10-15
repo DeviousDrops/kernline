@@ -26,6 +26,13 @@ def test_pick_rows_honours_requested_dims():
     assert set(roofline.pick_rows(ROWS, "1024x1024x1024")) == {"v0", "v1", "cublas"}
 
 
+def test_pick_rows_skips_rows_without_flop():
+    # bench/torch_block.py rows carry a time but no FLOP count.
+    rows = ROWS + [{"variant": "torch", "dims": "8x2048x768x12", "flop": "", "time_ms": "81.2",
+                    "bytes_theory": "", "dram_bytes": ""}]
+    assert "torch" not in roofline.pick_rows(rows, None)
+
+
 def test_point_prefers_measured_dram_bytes():
     ai, gflops, measured = roofline.point(ROWS[4])
     assert measured and ai == pytest.approx(2e9 / 4e7) and gflops == pytest.approx(200)
