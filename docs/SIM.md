@@ -67,6 +67,8 @@ One `Cache` class: 128 B lines, 32 B sectors, set-associative, LRU. A miss fills
 - L2: `lts__t_sectors_srcunit_tex_op_{read,write}.sum`, `lts__t_sectors_srcunit_tex_op_{read,write}_lookup_hit.sum`.
 - `dram__bytes_{read,write}.sum`.
 
+ncu collects these counters over several replay passes of each kernel (4 on the 4060), so a hit count and its total can come from different runs. Kernels whose blocks are synchronized (gemm_v3, the softmax and helper kernels) give consistent counts. GEMM v0 and v2's free-running blocks don't: some launches report more hits than accesses. Their measured L2 rates are reported as not meaningful rather than compared. Global request and sector counts don't depend on cache behavior and are exact in every pass.
+
 They're stored as `results/sim/ncu_<gpu>.csv`, one row per launch (kernel name in launch order). Because the counters are split by operation, hit rates are compared like for like, with no guessing about how ncu's combined `*_hit_rate.pct` metrics count stores. The 4070 reference is optional: the script runs unchanged on Arjun's GPU.
 
 **Generator check (exact).** The number of global requests and sectors depends only on the index math, not on any cache assumption. For every validated launch, the simulator's load and store request and sector counts must equal ncu's **exactly**. This runs before any hit rate is compared, so a wrong generator can't be mistaken for a cache effect.

@@ -141,3 +141,41 @@ def test_reference_covers_every_case():
     assert set(cases()) <= have
     configs = {(r["kernel_name"], r["block_size"], r["smem_per_block"]) for r in csv.DictReader(CONFIG.open())}
     assert ("gemm_v3_kernel", "256", "9344") in configs
+
+
+COUNTS = ["ld_requests", "ld_sectors", "st_requests", "st_sectors"]
+LIVE = [("gemm", "v2", "1024x1024x1024"), ("gemm", "v3", "1024x1024x1024"),
+        ("attention", "v1", "12x256x64"), ("attention", "v2", "12x256x64")]
+
+
+@pytest.mark.parametrize("kernel,variant,dims", LIVE)
+def test_requests_and_sectors_match_ncu_exactly(kernel, variant, dims):
+    """Request and sector counts depend only on the index math, so they must be exact
+    (docs/SIM.md, "Generator check"). A mismatch means a generator is wrong, not the caches."""
+    need(SIM)
+    if not REF.exists():
+        pytest.skip("no ncu reference yet; run tools/sim_ncu.sh")
+    ref = {int(r["launch"]): r for r in csv.DictReader(REF.open())
+           if (r["kernel"], r["variant"], r["dims"]) == (kernel, variant, dims)}
+    out = subprocess.run([SIM, kernel, variant, dims], check=True, capture_output=True, text=True,
+                         cwd=ROOT).stdout
+    sim = list(csv.DictReader(out.splitlines()))
+    assert len(sim) == len(ref)
+    for r in sim:
+        n = ref[int(r["launch"])]
+        assert r["sim_kernel"] == n["kernel_name"], r["launch"]
+        assert r["simulated_only"] == "0", f"launch {r['launch']}: config not found in {CONFIG.name}"
+        assert {c: int(r[c]) for c in COUNTS} == {c: int(n[c]) for c in COUNTS}, f"launch {r['launch']}"
+
+
+def test_committed_validation_counts_match_ncu():
+    path = ROOT / "results" / "sim" / "rtx4060_laptop.csv"
+    if not path.exists():
+        pytest.skip("no validation run yet; run analysis/cachesim.py validate")
+    rows = list(csv.DictReader(path.open()))
+    assert {(r["kernel"], r["variant"], r["dims"]) for r in rows} == set(cases())
+    for r in rows:
+        where = (r["kernel"], r["variant"], r["dims"], r["launch"])
+        assert r["sim_kernel"] == r["ncu_kernel"], where
+        for c in COUNTS:
+            assert r[c] == r["ncu_" + c], (where, c)
