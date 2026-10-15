@@ -35,7 +35,7 @@ Data: `results/sim/rtx4060_laptop.csv` (simulator and ncu counters per launch), 
 
 Global load and store requests and sectors match ncu exactly on all 266 launches, with no conversion factor. They depend only on the index math, so the generators are right, and every gap below comes from the cache model or from ncu's counters.
 
-**ncu's replay passes.** ncu collected the counters over 4 replay passes, so a hit count and its total can come from different runs. In 47 of gemm_v0's 98 launches a hit count exceeds its total (46 on L2 writes, 1 on L2 reads), and so does one gemm_v2 launch (L2 writes). The tables mark a call `n/a*` when its summed hit count exceeds its summed total. `cachesim_validation.png` leaves such a call out of that panel. No call is affected for L1 or L2 read rates. A rate whose hit count is below its total can still mix passes, so the kernels with free-running blocks (GEMM v0, v2) carry this caveat throughout.
+**ncu's replay passes.** ncu collected the counters over 4 replay passes, so a hit count and its total can come from different runs. In 46 of gemm_v0's 98 launches a hit count exceeds its total. All 46 are on L2 writes, and one of them also on L2 reads. One gemm_v2 launch does the same on L2 writes. The tables mark a call `n/a*` when its summed hit count exceeds its summed total. `cachesim_validation.png` leaves such a call out of that panel. No call is affected for L1 or L2 read rates. A rate whose hit count is below its total can still mix passes, so the kernels with free-running blocks (GEMM v0, v2) carry this caveat throughout.
 
 - **L2 read hit rate:** within 2.8 points on all 18 calls outside attention v0 (worst: attention v1 at N = 4096, 36.8% vs 39.6%). Attention v0 is 13–21 points high (91.4% vs 70.8% at N = 1024).
 - **L1 load hit rate:** within 4.4 points on 16 calls. GEMM v0 is 9.2–9.5 points low, attention v0 3.6–7.7 points low, and GEMM v3 at 1024³ 11.4 points high (18.8% vs 7.4%).
@@ -135,7 +135,7 @@ At 4096³, B (67 MB) doesn't fit in L2, so GEMM v3 re-reads it from DRAM once fo
 | 4096 | QK | 96.4 / 96.8 | 96.4 / 96.8 | 25.2 / 25.2 |
 | 4096 | PV | 25.8 / 32.1 | 28.0 / 31.5 | 821.1 / 821.9 |
 
-Batching the heads doesn't change L2 reuse of Kᵀ or V. The simulated v1 and v2 rates differ by at most 0.4 points up to N = 2048 and by 2.2 points at N = 4096. The measured rates differ by at most 2.0 points. Simulated DRAM reads are identical up to N = 2048 and 0.1% apart at N = 4096. The batched grid runs head by head (gridDim.z is the slowest index), so the resident blocks almost always come from one head, like the per-head launches. The heads share no Kᵀ or V, so there is nothing for batching to reuse. v2's 9× speedup over v1 at N = 256 (`analysis/attention.md`) is occupancy, not caching.
+Batching the heads doesn't change L2 reuse of Kᵀ or V. The simulated v1 and v2 rates differ by at most 0.4 points up to N = 2048 and by 2.2 points at N = 4096. The measured rates differ by at most 2.0 points. Simulated DRAM reads are identical up to N = 2048 and 0.1% apart at N = 4096. The batched grid runs head by head (gridDim.z is the slowest index), so the resident blocks almost always come from one head, like the per-head launches. The heads share no Kᵀ or V, so there is nothing for batching to reuse. v2's 7.9× speedup over v1 at N = 256 (`analysis/attention.md`) is occupancy, not caching.
 
 The simulator also reproduces the phase rates themselves: Q·Kᵀ's within 1.8 points at every N, and P·V's within 0.6 points up to N = 2048. At N = 4096 the simulator's P·V rate is 6.3 (v1) and 3.5 (v2) points below ncu's. The validation table points to L1. At N = 4096 the simulator's whole-call L1 rate is 7.0% and 5.8% vs ncu's 2.9% and 2.5%, so the simulator catches in L1 some of V's reuse that the hardware serves from L2.
 
@@ -151,11 +151,13 @@ P's loads in the P·V GEMM (operand A), attention v2:
 | 2048 | 16.0 | 0.0 | 0.0 | 31.1 |
 | 4096 | 16.0 | 0.0 | 0.0 | 31.5 |
 
-- **Every sector is used in full.** A warp's 32 float4 loads of P cover 16 rows × 32 B. In `gemm_v3`'s tile fill, thread t loads row t/2 of the 128-row A tile. So each request is 512 B in 16 sectors, each in its own 128 B line.
+- **Each request reads one 32 B sector from each of 16 lines.** A warp's 32 float4 loads of P cover 16 rows × 32 B. In `gemm_v3`'s tile fill, thread t loads row t/2 of the 128-row A tile. So each request is 512 B in 16 sectors, each in its own 128 B line, and those lines are 4·N bytes apart (16 KB at N = 4096). A block's 8 warps together read one sector from each of the tile's 128 rows per k-step.
 - **Every P sector comes from DRAM exactly once.** The P loads get 0.0% in L1 and 0.0% in L2. P·V's output is N × 64, narrower than one 128-wide tile, so each row panel of P is loaded by exactly one block. The whole-launch L2 hits ncu measures (16.7–31.5%) are V's.
 - **P·V moves the minimum bytes.** Its simulated DRAM reads at N = 4096 are 821.9 MB, 0.5% above the size of P and V (805.3 + 12.6 MB).
 
-So the simulator does not support reading P·V as DRAM-bound by its access pattern. It reads no byte twice and fetches no unused byte. Its low DRAM throughput (33% of bandwidth, `analysis/attention.md`) has to come from timing: few loads in flight while half of every tile computes zeros. An untimed model can't see that, and it doesn't model DRAM row locality, which the 16 lines per request could affect.
+The simulator confirms the access pattern that `analysis/attention.md` blames for P·V's DRAM throughput. Each request takes one 32 B sector from each of 16 lines, 4·N bytes apart, and each sector of P is fetched from DRAM once. It rules out one other cause: at 32 B sector granularity there is no redundant or over-fetched traffic. No sector is read twice, and every fetched sector is used in full.
+
+What it can't test is whether that pattern is slow at DRAM. The model has no timing and no DRAM model, so it doesn't see row-buffer locality. That is where `analysis/attention.md`'s P·V paragraph places the limit: about 85 GB/s, 34% of DRAM bandwidth, on the 4060, and 77 GB/s on the 4070. The simulator is consistent with that explanation but doesn't measure it.
 
 ## Assumptions
 
