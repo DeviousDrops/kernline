@@ -57,27 +57,61 @@ Everything else is measured (ceilings, latencies, clocks) or counted (descriptor
 
 ### RTX 4060 Laptop, held out
 
+The full suite from `b/model-inputs` (#12), predicted with the 4070's parameters and no refitting.
+
 | kernel | variant | rows | T0 median abs err | T1 median abs err | T2 median abs err | T2 bias | T2 worst row |
 |---|---|---|---|---|---|---|---|
-| attention | v0 | 5 | 12% | 8% | 8% | 0.94 | 12x2048x64 -12% |
-| attention | v1 | 5 | 42% | 4% | 5% | 1.03 | 12x512x64 +19% |
-| attention | v2 | 5 | 3% | 3% | 3% | 1.05 | 12x1024x64 +10% |
-| gemm | v0 | 3 | 6% | 6% | 6% | 1.04 | 1024x1024x1024 +22% |
-| layernorm | v0 | 3 | 52% | 46% | 46% | 1.06 | 1024x768 +102% |
-| layernorm | v1 | 3 | 5% | 5% | 4% | 1.10 | 1024x768 +46% |
-| layernorm | v2 | 3 | 6% | 6% | 6% | 1.00 | 1024x768 +9% |
-| layernorm | v3 | 3 | 11% | 11% | 11% | 0.81 | 1024x768 -36% |
-| softmax | v0 | 4 | 55% | 29% | 29% | 0.63 | 24576x2048 -65% |
-| softmax | v1 | 4 | 7% | 7% | 6% | 1.20 | 6144x512 +144% |
-| softmax | v2 | 4 | 8% | 8% | 8% | 1.02 | 6144x512 +36% |
-| softmax | v3 | 4 | 10% | 10% | 10% | 0.89 | 6144x512 -14% |
-| **all** |  | 46 | 11% | 8% | 7% | 0.97 | 24576x2048 -65% |
+| attention | v1 | 5 | 42% | 6% | 5% | 1.04 | 12x512x64 +18% |
+| attention | v2 | 5 | 5% | 2% | 2% | 1.06 | 12x1024x64 +19% |
+| block | attn | 5 | 5% | 5% | 2% | 1.07 | 8x512x768x12 +21% |
+| block | fc1 | 5 | 6% | 6% | 6% | 1.02 | 8x512x768x12 +10% |
+| block | fc2 | 5 | 5% | 5% | 5% | 1.00 | 1x512x768x12 +20% |
+| block | gelu | 5 | 11% | 11% | 11% | 0.93 | 1x512x768x12 -26% |
+| block | ln1 | 5 | 40% | 45% | 27% | 1.10 | 4x1024x768x12 +61% |
+| block | ln2 | 5 | 37% | 41% | 43% | 1.04 | 1x512x768x12 -43% |
+| block | merge | 5 | 41% | 41% | 37% | 0.63 | 1x512x768x12 -60% |
+| block | proj | 5 | 4% | 4% | 4% | 0.98 | 1x512x768x12 +14% |
+| block | qkv | 5 | 5% | 5% | 5% | 0.96 | 8x512x768x12 -8% |
+| block | res1 | 5 | 36% | 36% | 18% | 1.19 | 4x1024x768x12 +69% |
+| block | res2 | 5 | 51% | 51% | 38% | 1.15 | 4x1024x768x12 +75% |
+| block | split | 5 | 4% | 4% | 3% | 0.84 | 1x512x768x12 -54% |
+| block | total | 5 | 1% | 1% | 2% | 1.00 | 1x512x768x12 -5% |
+| gemm | v0 | 13 | 3% | 3% | 3% | 0.99 | 512x3072x768 +21% |
+| gemm | v1 | 13 | 2% | 2% | 2% | 0.97 | 512x2304x768 -5% |
+| gemm | v2 | 13 | 5% | 5% | 4% | 0.95 | 3072x3072x3072 -10% |
+| gemm | v3 | 13 | 8% | 5% | 5% | 0.99 | 512x768x3072 +16% |
+| gemm | v4 | 13 | 6% | 4% | 6% | 1.01 | 512x768x3072 +23% |
+| layernorm | v0 | 3 | 52% | 46% | 46% | 1.06 | 1024x768 +103% |
+| layernorm | v1 | 3 | 4% | 5% | 4% | 1.04 | 1024x768 +22% |
+| layernorm | v2 | 3 | 6% | 6% | 6% | 0.93 | 1024x768 -13% |
+| layernorm | v3 | 3 | 12% | 12% | 11% | 0.81 | 1024x768 -37% |
+| softmax | v0 | 4 | 55% | 29% | 28% | 0.64 | 24576x2048 -63% |
+| softmax | v1 | 4 | 6% | 6% | 5% | 1.19 | 6144x512 +134% |
+| softmax | v2 | 4 | 7% | 7% | 7% | 1.04 | 6144x512 +42% |
+| softmax | v3 | 4 | 10% | 10% | 10% | 0.90 | 6144x512 -11% |
+| **all** |  | 173 | 6% | 5% | 5% | 0.98 | 24576x2048 -63% |
 
-**Coverage caveat.** The 4060 rows that exist today are Kartik's from #6-#9: GEMM v0 at three
-squares, softmax, LayerNorm and attention. GEMM v1-v4, the transformer-shape GEMMs and the block
-come from `tools/suite.sh` on the 4060 (`b/model-inputs`); this table is rerun when they land, and
-the compute-bound rows (v3, v4, the block's projections) are the ones that test the 1.5x SM
-scaling.
+**Does it get the SM scaling right?** D1's test is the 4060 / 4070 time ratio: about 1.5x for
+compute-bound kernels, about 1x for memory-bound ones. Medians over the rows both GPUs share
+(block: the total only):
+
+| kernels | rows | measured 4060 / 4070 | predicted | median abs error of the ratio |
+|---|---|---|---|---|
+| GEMM v0-v4 | 61 | 1.48 | 1.47 | 2% |
+| GEMM v3/v4 at 512x768x768 and 512x768x3072 (24 tiles: one wave on both GPUs) | 4 | 1.02 | 0.99 | 4% |
+| softmax / LayerNorm | 28 | 0.98 | 1.00 | 4% |
+| attention | 15 | 1.06 | 1.00 | 4% |
+| block total | 5 | 1.24 | 1.22 | 1% |
+
+The one-wave GEMMs are T1's case: the 4070's extra 12 SMs sit idle, so they run at the same
+speed on both GPUs, and a roofline alone would have predicted 1.5x.
+
+**Where it misses on the 4060.** The block's small steps (residual adds, LayerNorms, split/merge
+at 512-1024 tokens, 10-50 us each) take 5-10 us longer on the 4060 than on the 4070, yet match
+at 8x2048. That is per-launch overhead: the 4060 runs under WSL2, the 4070 natively, and
+`launch_us` = 2 us was fitted on native Linux. Those rows give the 4060's worst block-step
+errors (residual 4x1024 +69%) without moving the block total, where they are under 1% of the
+time.
 
 ### RTX 4070 Laptop, tuning set
 
@@ -118,7 +152,7 @@ scaling.
 
 ## Which effect explains which error
 
-- **Occupancy and waves (T0 -> T1)**: attention v1 drops from 40% to 4% on the 4070, and from 42% to 4% held out on the 4060. It runs one
+- **Occupancy and waves (T0 -> T1)**: attention v1 drops from 40% to 4% on the 4070, and from 42% to 6% held out on the 4060. It runs one
   `gemm_v3` per head, and at N = 256 a head's Q·Kᵀ is 4 tiles: 32 of 36 SMs sit idle, which T0's
   "spread evenly over all SMs" cannot see. The block's `fc2` at 512 tokens is the same effect in a
   single launch: 24 blocks on 36 SMs, each SM holding one 8-warp block that runs at
@@ -142,12 +176,15 @@ scaling.
 | instruction-level efficiency | absorbed by `fma_eff` = 0.625, `tc_eff` = 0.425 | GEMM v3 reaches 62% of the FMA microbenchmark (register bank conflicts, address math, barriers) and v4 42% of the mma microbenchmark (WMMA fragment loads through shared memory). The model cannot derive those from first principles; it fits one number per pipe on the 4070 and carries it to the 4060 unchanged. |
 | L2 reuse | GEMM v1 3072³ +23% | The panel model is all-or-nothing at `l2_eff` x 32 MB. Shapes whose reuse distance sits near that edge (v1 at 3072: 384 KB panels, 96 per row) get partial reuse in reality. |
 | clock variance | no row error, by construction | Predictions use each row's measured clock. The model does not predict the clock: under sustained FMA load the 4070 drops from 2490 to 1700-2000 MHz (cuBLAS, v3 at 4096³), so a prediction at the ceiling clock would be up to 1.4x optimistic for those rows. |
+| launch overhead per platform | residual 4x1024 +69%, softmax v1 6144x512 +134% (4060; +30% and +50% on the 4070) | `launch_us` is one number fitted on the native-Linux 4070. Under WSL2 the 4060 pays 5-10 us more per small launch, so 10-50 us kernels come out slow there. A per-platform launch term would fix it, but fitting it on the 4060 would break D1. |
 | elementwise index math | split -50%, merge -41% (small shapes) | Integer division is counted as a fixed 40 instructions per element; the real cost depends on what the compiler hoists. |
 
 ## Transformer block (D4)
 
 GPT-2 small layer (d = 768, 12 heads), FP32, `block/block.cu`. The model column is the sum of the
 model's per-step predictions; "measured total" runs all twelve steps back to back.
+
+On the 4070 Laptop:
 
 | B×S×D×H | measured total | measured Σ steps | model Σ steps T0 | T1 | T2 | T2 vs total | PyTorch eager | PyTorch graph | ours vs eager |
 |---|---|---|---|---|---|---|---|---|---|
@@ -157,7 +194,17 @@ model's per-step predictions; "measured total" runs all twelve steps back to bac
 | 8x512x768x12 | 9.143 | 9.070 | 8.855 | 9.167 | 9.197 | +1% | 10.602 | 10.021 | 1.16× |
 | 8x2048x768x12 | 67.636 | 69.669 | 68.963 | 69.288 | 69.318 | +2% | 81.224 | — (out of memory) | 1.20× |
 
-Per step at 8x2048x768x12:
+On the 4060 Laptop, held out:
+
+| B×S×D×H | measured total | measured Σ steps | model Σ steps T0 | T1 | T2 | T2 vs total | PyTorch eager | PyTorch graph | ours vs eager |
+| 1x512x768x12 | 1.428 | 1.330 | 1.084 | 1.294 | 1.324 | -7% | 1.508 | 1.564 | 1.06× |
+| 1x2048x768x12 | 9.432 | 9.483 | 9.315 | 9.317 | 9.347 | -1% | 11.560 | 11.423 | 1.23× |
+| 4x1024x768x12 | 13.962 | 13.509 | 14.035 | 14.037 | 14.067 | +1% | 16.448 | 16.485 | 1.18× |
+| 8x512x768x12 | 11.553 | 11.290 | 11.756 | 11.758 | 11.788 | +2% | 12.909 | 12.874 | 1.12× |
+| 8x2048x768x12 | 78.111 | 78.699 | 79.921 | 79.921 | 79.951 | +2% | 96.315 | — (out of memory) | 1.23× |
+| step | measured | model T2 | error | limiter |
+
+Per step at 8x2048x768x12, 4070:
 
 | step | measured | model T2 | error | limiter |
 |---|---|---|---|---|
@@ -174,7 +221,9 @@ Per step at 8x2048x768x12:
 | fc2 | 7.0492 | 7.0450 | -0% | compute |
 | res2 | 0.6561 | 0.6079 | -7% | dram |
 
-The sum of predicted steps lands within 5% of the measured block at every size. Attention is
-61% of the block at 8x2048 and DRAM-bound, so that is where an unfused FP32 block goes;
-PyTorch eager (SDPA math backend) is 16-27% slower than ours from 2048 tokens up, and 5% faster
-at 512 tokens, where per-launch costs dominate both.
+The sum of predicted steps lands within 5% of the measured block at every size on the 4070,
+and within 7% on the held-out 4060 (2% or better from 2048 tokens up). Attention is
+61% of the block at 8x2048 and DRAM-bound, so that is where an unfused FP32 block goes.
+On the 4070, PyTorch eager (SDPA math backend) is 16-27% slower than ours from 2048 tokens up,
+and 5% faster at 512 tokens, where per-launch costs dominate both. On the 4060 it is 6-23%
+slower at every size.
