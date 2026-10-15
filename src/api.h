@@ -46,6 +46,22 @@ int attention_v1(const float* Q, const float* K, const float* V, float* O, float
 int attention_v2(const float* Q, const float* K, const float* V, float* O, float* work, int heads,
                  int N, int d, cudaStream_t s);
 
+// GPT-2-style transformer block over the [B·S, D] residual stream x (updated in place), H heads,
+// FP32, no biases. Weights are row-major [in, out]. `work` must hold
+// transformer_block_workspace_bytes(B, S, D, H). transformer_block runs every step;
+// transformer_block_step runs one (0 .. transformer_block_num_steps() - 1, named by
+// transformer_block_step_name), which is how block/block.cu times them separately.
+size_t transformer_block_workspace_bytes(int B, int S, int D, int H);
+int transformer_block_num_steps(void);
+const char* transformer_block_step_name(int step);
+int transformer_block_step(int step, float* x, const float* ln1_g, const float* ln1_b,
+                           const float* Wqkv, const float* Wo, const float* ln2_g,
+                           const float* ln2_b, const float* W1, const float* W2, float* work, int B,
+                           int S, int D, int H, cudaStream_t s);
+int transformer_block(float* x, const float* ln1_g, const float* ln1_b, const float* Wqkv,
+                      const float* Wo, const float* ln2_g, const float* ln2_b, const float* W1,
+                      const float* W2, float* work, int B, int S, int D, int H, cudaStream_t s);
+
 #ifdef __cplusplus
 }
 #endif

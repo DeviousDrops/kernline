@@ -1,9 +1,11 @@
 #include "src/api.h"
+#include <algorithm>
 #include <cstdint>
 #include <cublas_v2.h>
 #include <cmath>
 #include "common/warp_reduce.cuh"
 #include "kernels/attention/attention.h"
+#include "kernels/block/block_ops.h"
 #include "kernels/gemm/gemm.h"
 #include "kernels/layernorm/layernorm.h"
 #include "kernels/softmax/softmax.h"
@@ -257,4 +259,92 @@ extern "C" int attention_v2(const float* Q, const float* K, const float* V, floa
         err = N <= 2048 ? softmax_v2(S, S, heads * N, N, s) : softmax_v3(S, S, heads * N, N, s);
     if (!err) err = gemm_v3_batched(S, V, O, N, d, N, heads, nn, nd, nd, s);
     return err;
+}
+
+// ---- transformer block (D4): GPT-2-style pre-LN block, FP32, no biases
+//
+//   h = LN1(x); qkv = h·Wqkv; q,k,v = split(qkv); o = attention(q,k,v); a = merge(o)
+//   x += a·Wo; h = LN2(x); f = GELU(h·W1); x += f·W2
+//
+// x is the [B·S, D] residual stream, updated in place. Weights are row-major [in, out]: Wqkv is
+// D×3D, Wo D×D, W1 D×4D, W2 4D×D. Each step uses the fastest variant at transformer shapes:
+// gemm_v3, layernorm_v2, attention_v2. `work` holds transformer_block_workspace_bytes().
+
+namespace {
+
+const char* const kBlockSteps[] = {"ln1",  "qkv", "split", "attn", "merge", "proj",
+                                   "res1", "ln2", "fc1",   "gelu", "fc2",   "res2"};
+const int kNumBlockSteps = sizeof(kBlockSteps) / sizeof(kBlockSteps[0]);
+
+// Elementwise launches: enough blocks to cover the GPU a few times over, grid-stride beyond that.
+int elementwise_grid(long long n) { return (int)std::min<long long>((n + 255) / 256, 4096); }
+
+}  // namespace
+
+extern "C" int transformer_block_num_steps() { return kNumBlockSteps; }
+
+extern "C" const char* transformer_block_step_name(int step) {
+    return step >= 0 && step < kNumBlockSteps ? kBlockSteps[step] : nullptr;
+}
+
+extern "C" size_t transformer_block_workspace_bytes(int B, int S, int D, int H) {
+    const size_t T = (size_t)B * S;
+    // h, qkv (3), q, k, v, o, a, p (6), f (4): 14·T·D floats, plus attention's scores and Kᵀ.
+    return sizeof(float) * 14 * T * D + attention_workspace_bytes(B * H, S, D / H);
+}
+
+extern "C" int transformer_block_step(int step, float* x, const float* ln1_g, const float* ln1_b,
+                                      const float* Wqkv, const float* Wo, const float* ln2_g,
+                                      const float* ln2_b, const float* W1, const float* W2,
+                                      float* work, int B, int S, int D, int H, cudaStream_t s) {
+    const int T = B * S, F = 4 * D, d = D / H;
+    const long long TD = (long long)T * D;
+    float* h = work;
+    float* qkv = h + TD;
+    float* q = qkv + 3 * TD;
+    float* k = q + TD;
+    float* v = k + TD;
+    float* o = v + TD;
+    float* a = o + TD;
+    float* p = a + TD;
+    float* f = p + TD;
+    float* attn = f + 4 * TD;
+    const float eps = 1e-5f;
+    switch (step) {
+        case 0: return layernorm_v2(x, ln1_g, ln1_b, h, T, D, eps, s);
+        case 1: return gemm_v3(h, Wqkv, qkv, T, 3 * D, D, s);
+        case 2:
+            split_heads_kernel<<<dim3((3 * D + 255) / 256, T), 256, 0, s>>>(qkv, q, k, v, B, S, H, d);
+            return cudaGetLastError();
+        case 3: return attention_v2(q, k, v, o, attn, B * H, S, d, s);
+        case 4:
+            merge_heads_kernel<<<dim3((D + 255) / 256, T), 256, 0, s>>>(o, a, B, S, H, d);
+            return cudaGetLastError();
+        case 5: return gemm_v3(a, Wo, p, T, D, D, s);
+        case 6:
+            add_inplace_kernel<<<elementwise_grid(TD), 256, 0, s>>>(x, p, TD);
+            return cudaGetLastError();
+        case 7: return layernorm_v2(x, ln2_g, ln2_b, h, T, D, eps, s);
+        case 8: return gemm_v3(h, W1, f, T, F, D, s);
+        case 9:
+            gelu_inplace_kernel<<<elementwise_grid((long long)T * F), 256, 0, s>>>(f, (long long)T * F);
+            return cudaGetLastError();
+        case 10: return gemm_v3(f, W2, p, T, D, F, s);
+        case 11:
+            add_inplace_kernel<<<elementwise_grid(TD), 256, 0, s>>>(x, p, TD);
+            return cudaGetLastError();
+        default: return cudaErrorInvalidValue;
+    }
+}
+
+extern "C" int transformer_block(float* x, const float* ln1_g, const float* ln1_b,
+                                 const float* Wqkv, const float* Wo, const float* ln2_g,
+                                 const float* ln2_b, const float* W1, const float* W2, float* work,
+                                 int B, int S, int D, int H, cudaStream_t s) {
+    for (int step = 0; step < kNumBlockSteps; ++step) {
+        const int err = transformer_block_step(step, x, ln1_g, ln1_b, Wqkv, Wo, ln2_g, ln2_b, W1,
+                                               W2, work, B, S, D, H, s);
+        if (err) return err;
+    }
+    return cudaSuccess;
 }

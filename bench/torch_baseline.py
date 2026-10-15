@@ -5,7 +5,8 @@
     torch_baseline.py layernorm <rows> <cols>
     torch_baseline.py attention <heads> <N> <d>
 
-Same method as bench/bench.cu: warm up for >= 3 launches and >= 500 ms, then 21 timed batches
+Same method as bench/bench.cu: warm up for >= 3 launches and >= 500 ms (and until the memory
+clock is at its maximum, for at most 5 s), then 21 timed batches
 of back-to-back launches lasting >= 5 ms each; time_ms is the median per launch. Clocks are the
 median NVML reading taken while the batch is in flight. Runs under inference_mode (no autograd).
 
@@ -23,7 +24,7 @@ import sys
 import torch
 import torch.nn.functional as F
 
-WARMUP, WARMUP_MS, BATCH_MS, RUNS = 3, 500.0, 5.0, 21
+WARMUP, WARMUP_MS, WARMUP_MAX_MS, BATCH_MS, RUNS = 3, 500.0, 5000.0, 5.0, 21
 
 
 class Nvml:
@@ -46,6 +47,20 @@ class Nvml:
         self.lib.nvmlDeviceGetClockInfo(self.dev, 1, ctypes.byref(sm))   # NVML_CLOCK_SM
         self.lib.nvmlDeviceGetClockInfo(self.dev, 2, ctypes.byref(mem))  # NVML_CLOCK_MEM
         return sm.value, mem.value
+
+    def mem_at_max(self) -> bool:
+        """True once the memory clock is at its maximum (see common/gpu_info.h), or without NVML."""
+        if not self.ok:
+            return True
+        cur, top = ctypes.c_uint(), ctypes.c_uint()
+        if (self.lib.nvmlDeviceGetClockInfo(self.dev, 2, ctypes.byref(cur)) or
+                self.lib.nvmlDeviceGetMaxClockInfo(self.dev, 2, ctypes.byref(top))):
+            return True
+        return cur.value >= top.value
+
+    def warming(self, n: int, ms: float) -> bool:
+        """The bench's warmup condition (common/bench_util.h, time_launch)."""
+        return n < WARMUP or ms < WARMUP_MS or (ms < WARMUP_MAX_MS and not self.mem_at_max())
 
 
 def gpu_slug(name: str) -> str:
@@ -84,7 +99,7 @@ def time_launch(launch) -> tuple[float, int, int]:
 
     probe = capture(1)
     warm_ms, warm_n = 0.0, 0
-    while warm_n < WARMUP or warm_ms < WARMUP_MS:
+    while nvml.warming(warm_n, warm_ms):
         warm_ms += timed(probe.replay, 1)[0]
         warm_n += 1
     batch = max(1, math.ceil(BATCH_MS / (warm_ms / warm_n)))

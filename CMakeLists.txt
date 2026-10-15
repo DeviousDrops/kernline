@@ -21,6 +21,10 @@ target_link_libraries(kernels PRIVATE CUDA::cublas)
 add_executable(bench bench/bench.cu)
 target_link_libraries(bench PRIVATE kernels CUDA::nvml CUDA::nvtx3)
 
+# Transformer block runner (D4): per-step and whole-block timings.
+add_executable(block block/block.cu)
+target_link_libraries(block PRIVATE kernels CUDA::nvml CUDA::nvtx3)
+
 # Roofline ceilings + device limits for specs/<gpu>.json (D3). tools/ceilings/run.sh drives it.
 add_executable(ceilings tools/ceilings/ceilings.cu)
 target_include_directories(ceilings PRIVATE ${CMAKE_SOURCE_DIR})
