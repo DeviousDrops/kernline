@@ -33,6 +33,9 @@ BASELINE = INK_2
 BASELINES = {"cublas", "torch", "cudnn"}
 # Variants that take FP16 inputs and run on tensor cores: they get the FP16 tensor-core roof.
 TENSOR_CORE_VARIANTS = {"gemm": {"v4"}}
+# Results files that aren't one kernel's optimization steps: block.csv holds the transformer
+# block's per-step rows (block/block.cu), so it's skipped unless asked for with --kernel.
+NOT_KERNELS = {"block"}
 
 
 def load_specs() -> dict:
@@ -65,10 +68,11 @@ def _variant_key(v: str):
 
 
 def pick_rows(rows: list[dict], dims: str | None) -> dict[str, dict]:
-    """One row per variant: the requested dims, else the largest dims that variant has."""
+    """One row per variant: the requested dims, else the largest dims that variant has. Rows
+    without a FLOP count or a time (e.g. the PyTorch block rows) have no roofline point."""
     best: dict[str, dict] = {}
     for r in rows:
-        if dims and r["dims"] != dims:
+        if (dims and r["dims"] != dims) or not r.get("flop") or not r.get("time_ms"):
             continue
         cur = best.get(r["variant"])
         if cur is None or _dims_size(r["dims"]) > _dims_size(cur["dims"]):
@@ -214,7 +218,7 @@ def main() -> None:
 
     specs = load_specs()
     kernels = [args.kernel] if args.kernel else sorted(
-        {p.stem for gpu in specs for p in (ROOT / "results" / gpu).glob("*.csv")})
+        {p.stem for gpu in specs for p in (ROOT / "results" / gpu).glob("*.csv")} - NOT_KERNELS)
     for k in kernels:
         out = plot_kernel(k, specs, args.dims, args.out)
         print(out or f"{k}: no rows for any GPU with measured ceilings")

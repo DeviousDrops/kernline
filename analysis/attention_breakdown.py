@@ -13,7 +13,7 @@ from tools/profile.sh) and splits the call's kernels into phases by name and lau
     PV       GEMM kernels launched after softmax
 
 Prints a markdown table per variant (time and DRAM bytes per phase, achieved FLOP/byte against the
-GPU's ridge point) and writes analysis/plots/attention_<variant>_breakdown.png. Times are ncu's
+GPU's ridge point) and writes analysis/plots/attention_<gpu>_<variant>_breakdown.png. Times are ncu's
 gpu__time_duration at base clocks, so they're for proportions, not absolute speed.
 """
 import argparse
@@ -138,7 +138,7 @@ def plot(gpu: str, variant: str, rows: list) -> None:
                  loc="left")
     ax.legend(frameon=False, fontsize=8, ncol=5, loc="upper left", bbox_to_anchor=(0, -0.16))
     fig.tight_layout()
-    out = ROOT / "analysis" / "plots" / f"attention_{variant}_breakdown.png"
+    out = ROOT / "analysis" / "plots" / f"attention_{gpu}_{variant}_breakdown.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
     plt.close(fig)
