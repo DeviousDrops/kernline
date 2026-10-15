@@ -10,20 +10,23 @@ Kernels replayed, each with every sub-kernel it launches:
 - GEMM v0, v2, v3 (and `gemm_v3_batched`).
 - Attention v0, v1, v2: `transpose_scale_kernel`, `scale_kernel` (v0), softmax v0 / v2⟨k⟩ / v3 as `src/api.cu` picks them, and the GEMMs. v2 touches the same addresses as v1 in a different block order, so v1 vs v2 isolates the effect of scheduling on L2.
 
-Out of scope: shared memory and registers (not traced), GEMM v1/v4, LayerNorm, timing.
+Out of scope: shared memory and registers (not traced), GEMM v1/v4, LayerNorm, timing, and the scalar-load fallbacks of `gemm_v3` and softmax v3. Every validation shape takes the float4 paths, and the generators reject shapes that wouldn't.
 
 ## Architecture
 One C++ binary, `build/cachesim`. Each trace is generated and consumed in the same process and never stored: GEMM v0 at 4096³ alone is ~4×10⁹ warp-level loads.
 
 ```
 sim/
-  sim.h          WarpOp, Generator interface, Cache, result counters
-  generators/    gemm.cpp, attention.cpp, softmax.cpp: one Generator per kernel launch
-  coalesce.cpp   WarpOp -> the distinct 32 B sectors it touches, grouped by 128 B line
-  cache.cpp      sectored set-associative LRU cache (every L1 and the L2)
-  schedule.cpp   blocks -> SMs, resident-block slots, round-robin warps and SMs
-  main.cpp       build/cachesim <kernel> <variant> <dims> [--gpu G] [--tile ...] [--dump N] -> CSV
-tools/sim_ncu.sh       ncu reference counters for the validation cases (the one GPU step)
+  sim.h, buffers.cpp, coalesce.cpp   WarpOp, Generator, Buffers, coalesce()
+  cache.h/.cpp       sectored set-associative LRU cache (every L1 and the L2)
+  memory.h/.cpp      L1 per SM + L2 + counters (MemorySystem)
+  schedule.cpp       run(): blocks -> SMs, resident-block slots, round-robin warps and SMs
+  launch_config.h/.cpp  resident blocks and carveout per launch (ncu-measured, or the fallback rule)
+  generators/        gemm.cpp, rowwise.cpp (transpose, scale, softmax), attention.cpp
+  main.cpp           build/cachesim <kernel> <variant> <dims> [options] -> CSV
+  test.cpp           build/cachesim_test
+  cases.txt          the validation cases
+tools/sim_ncu.sh, sim_ncu.py   ncu reference counters + launch configs (the one GPU step)
 analysis/cachesim.py   runs the sim, compares with ncu launch by launch, tables + plots
 analysis/cachesim.md   write-up
 tests/test_cachesim.py pytest over build/cachesim; build/cachesim_test for cache + coalescer
@@ -75,12 +78,12 @@ They're stored as `results/sim/ncu_<gpu>.csv`, one row per launch (kernel name i
    - GEMM v0 at 1024³ and 2048³ (4096³ is too slow to simulate).
    - GEMM v2 and v3 at 1024³, 2048³ and 4096³.
    - Attention v1 and v2 at 12×N×64 for N = 256 … 4096, and v0 for N ≤ 2048 (its `gemm_v0` launches at N = 4096 are ~1.6×10⁹ warp loads).
-2. **Tile sweeps** at 2048³: v2 T ∈ {8, 16, 32}; v3 BM = BN ∈ {32, 64, 128} × BK ∈ {8, 16, 32}. L1 and L2 hit rates and DRAM bytes vs tile, on 24 and 36 SMs.
+2. **Tile sweeps** at 2048³: v2 T ∈ {8, 16, 32}; v3 BM = BN ∈ {64, 128} × BK ∈ {8, 16, 32} (TM = 8; a 32×32 tile would be 16 threads, under one warp). L1 and L2 hit rates and DRAM bytes vs tile, on 24 and 36 SMs.
 3. **Scheduling:** attention v1 vs v2, same addresses in a different block order. Does batching the heads change L2 reuse of Kᵀ and V?
 4. **P·V:** sectors per request and L2 behaviour of the P loads, the simulator's side of why P·V reads DRAM at ~85 GB/s (`analysis/attention.md`).
 
 ## Outputs
-- `results/sim/<gpu>.csv`, one row per (kernel, variant, dims, tile, launch index): `gpu, kernel, variant, dims, tile, launch, sim_kernel, simulated_only, ld_requests, ld_sectors, st_requests, st_sectors, l1_ld_hit_pct, l2_rd_hit_pct, l2_wr_hit_pct, dram_read_bytes, dram_write_bytes`, plus the matching `ncu_*` columns where a reference exists.
+- `results/sim/<gpu>.csv`, one row per (kernel, variant, dims, launch): the simulator's raw counters (requests, sectors, hit sectors, DRAM bytes) next to ncu's (`ncu_*`), plus load counters for the first input operand (`a_*`, e.g. P in P·V). Hit rates are derived from the counters by `analysis/cachesim.py report`. Tile sweeps go to `results/sim/sweep.csv`.
 - `analysis/cachesim.md` and `analysis/plots/cachesim_*.png`.
 
 ## Testing
