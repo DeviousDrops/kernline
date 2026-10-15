@@ -62,3 +62,10 @@ def test_block_total_is_the_sum_of_its_steps():
     total = len(block.launches((2, 1024, 768, 12), "total", gpu, p))
     steps = sum(len(block.launches((2, 1024, 768, 12), s, gpu, p)) for s in block.STEPS)
     assert total == steps
+
+
+def test_committed_params_are_what_tune_finds():
+    from model import report
+    fitted, _ = report.tune(data.rows("rtx4070_laptop"), spec.load("rtx4070_laptop"))
+    committed = params.load()
+    assert {k: committed[k] for k in fitted} == fitted

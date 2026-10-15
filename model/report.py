@@ -166,7 +166,7 @@ KERNEL_STYLE = {
     "gemm": ("#2a78d6", "o"), "attention": ("#eb6834", "s"), "softmax": ("#1baf7a", "^"),
     "layernorm": ("#eda100", "D"), "block": ("#e87ba4", "v"),
 }
-SURFACE, INK, INK_2, INK_3, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
+SURFACE, INK, INK_2, INK_3, GRIDLINE = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
 
 
 def scatter(gpu: str, rows, preds) -> Path:
@@ -182,7 +182,7 @@ def scatter(gpu: str, rows, preds) -> Path:
     for ax, tier in zip(axes, tiers.TIERS):
         ax.set_facecolor(SURFACE)
         ax.plot([lo, hi], [lo, hi], color=INK_2, lw=1.25, zorder=1)
-        ax.fill_between([lo, hi], [lo / 1.25, hi / 1.25], [lo * 1.25, hi * 1.25], color=GRID,
+        ax.fill_between([lo, hi], [lo / 1.25, hi / 1.25], [lo * 1.25, hi * 1.25], color=GRIDLINE,
                         lw=0, zorder=0)
         for kernel, (color, marker) in KERNEL_STYLE.items():
             pts = [(r.time_ms, pr[tier] * 1e3) for r, pr in zip(rows, preds) if r.kernel == kernel]
@@ -195,7 +195,7 @@ def scatter(gpu: str, rows, preds) -> Path:
         ax.set_yscale("log")
         ax.set_xlim(lo, hi)
         ax.set_ylim(lo, hi)
-        ax.grid(True, which="major", color=GRID, lw=0.8)
+        ax.grid(True, which="major", color=GRIDLINE, lw=0.8)
         ax.set_axisbelow(True)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
