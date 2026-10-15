@@ -16,6 +16,7 @@
 
 inline const int kWarmup = 3;
 inline const float kWarmupMs = 500.0f;
+inline const float kWarmupMaxMs = 5000.0f;  // give up waiting for the memory clock after this
 inline const float kBatchMs = 5.0f;  // minimum length of one timed run
 inline const int kRuns = 21;         // median of >= 20
 inline const char* kProfileRange = "kl_profile";  // see time_launch and tools/profile.sh
@@ -47,16 +48,20 @@ inline Timing time_launch(const std::function<int()>& launch) {
     ClockSampler clocks;
     // Warm up for at least kWarmup launches *and* kWarmupMs: an idle laptop GPU needs a few
     // hundred ms to reach its boost clock, and NVML (notably under WSL2) reports the change late.
+    // Then keep going until the memory clock is at its maximum too (it can lag by over a second),
+    // for at most kWarmupMaxMs.
     float warm_ms = 0.0f;
     int warm_launches = 0;
-    for (; warm_launches < kWarmup || warm_ms < kWarmupMs; ++warm_launches) {
+    for (; warm_launches < kWarmup || warm_ms < kWarmupMs ||
+           (warm_ms < kWarmupMaxMs && !clocks.mem_at_max());
+         ++warm_launches) {
         timer.start();
         CUDA_CHECK(launch());
         warm_ms += timer.stop_ms();
     }
     // One complete call inside an NVTX range, after the warmup (caches and clocks are hot).
     // tools/profile.sh profiles exactly the kernels in this range, however many one call launches
-    // (attention launches 2·heads + 2 kernels per call).
+    // (attention v0/v1 launch 2·heads + 2 kernels per call, v2 launches 4).
     nvtxRangePushA(kProfileRange);
     CUDA_CHECK(launch());
     nvtxRangePop();

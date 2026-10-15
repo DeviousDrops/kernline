@@ -10,7 +10,8 @@ __global__ void add_inplace_kernel(float* y, const float* x, long long n);
 __global__ void gelu_inplace_kernel(float* x, long long n);
 
 // qkv is [B·S, 3·D] with D = H·d (columns: all of Q, then K, then V; head h at columns h·d..);
-// q, k, v are [B·H, S, d], the layout attention_v* takes. Launch with gridDim.y = B·S tokens.
+// q, k, v are [B·H, S, d], the layout attention_v* takes. Launch with gridDim.y = B·S tokens
+// (so B·S <= 65535: past that the launch fails with cudaErrorInvalidConfiguration).
 __global__ void split_heads_kernel(const float* qkv, float* q, float* k, float* v, int B, int S,
                                    int H, int d);
 

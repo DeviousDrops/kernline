@@ -12,8 +12,9 @@ BxSxDxH:
   torch_graph  the same calls replayed from a CUDA graph (bench/torch_baseline.py's method), so
                only GPU time counts. The gap between the two rows is dispatch overhead.
 
-Eager timing follows the bench method otherwise: warm up >= 3 calls and >= 500 ms, then 21
-batches of back-to-back calls lasting >= 5 ms, median per call, NVML clocks sampled in flight.
+Eager timing follows the bench method otherwise: warm up >= 3 calls and >= 500 ms (and until the
+memory clock is at its maximum, for at most 5 s), then 21 batches of back-to-back calls lasting
+>= 5 ms, median per call, NVML clocks sampled in flight.
 """
 import math
 import statistics
@@ -25,7 +26,7 @@ import torch.nn.functional as F
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from torch_baseline import BATCH_MS, RUNS, WARMUP, WARMUP_MS, gpu_slug, nvml, time_launch  # noqa: E402
+from torch_baseline import BATCH_MS, RUNS, gpu_slug, nvml, time_launch  # noqa: E402
 
 
 def make_block(B: int, S: int, D: int, H: int):
@@ -60,7 +61,7 @@ def time_eager(fn) -> tuple[float, int, int]:
         return start.elapsed_time(stop), clocks
 
     warm_ms, warm_n = 0.0, 0
-    while warm_n < WARMUP or warm_ms < WARMUP_MS:
+    while nvml.warming(warm_n, warm_ms):
         warm_ms += timed(1)[0]
         warm_n += 1
     batch = max(1, math.ceil(BATCH_MS / (warm_ms / warm_n)))
@@ -83,6 +84,9 @@ def main() -> int:
     torch.manual_seed(0)
     gpu = gpu_slug(torch.cuda.get_device_name(0))
     dims = f"{B}x{S}x{D}x{H}"
+    # Cap the allocator at physical memory: under WSL2 an over-commit spills into system memory
+    # (10x slower) instead of raising, which would record a bogus row rather than skip it.
+    torch.cuda.set_per_process_memory_fraction(0.95)
     with torch.inference_mode():
         block = make_block(B, S, D, H)
         for variant, timer in (("torch", time_eager), ("torch_graph", time_launch)):

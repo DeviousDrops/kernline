@@ -48,6 +48,16 @@ class ClockSampler {
             mem_.push_back(mem);
         }
     }
+    // True once the memory clock is at its maximum (or NVML is unavailable). After an idle gap a
+    // laptop GPU can sit at a lower memory clock for over a second while the SM clock is already
+    // boosted, which makes memory-bound kernels up to ~35% slower.
+    bool mem_at_max() const {
+        unsigned cur = 0, max = 0;
+        if (!ok_ || nvmlDeviceGetClockInfo(dev_, NVML_CLOCK_MEM, &cur) != NVML_SUCCESS ||
+            nvmlDeviceGetMaxClockInfo(dev_, NVML_CLOCK_MEM, &max) != NVML_SUCCESS)
+            return true;
+        return cur >= max;
+    }
     int median_sm() const { return median(sm_); }
     int median_mem() const { return median(mem_); }
 
