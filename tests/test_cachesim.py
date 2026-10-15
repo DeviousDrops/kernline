@@ -1,5 +1,6 @@
 """Cache simulator (docs/SIM.md): the C++ unit tests, generator addresses checked by hand
 against the kernels' index math, and request/sector counts against Nsight Compute. No GPU."""
+import csv
 import subprocess
 from pathlib import Path
 
@@ -121,3 +122,22 @@ def test_attention_v2_batches_pv_and_masks_the_empty_half():
     assert mask == 0
     (_, _, _, operand), lanes = op("attention", "v2", "12x256x64", 3, 1 + 2 * 4, 0, 0)
     assert operand == 0 and lanes[0] == f"work+{4 * 256 * 256 + 128 * 256}"
+
+
+REF = ROOT / "results" / "sim" / "ncu_rtx4060_laptop.csv"
+CONFIG = ROOT / "results" / "sim" / "launch_config_rtx4060_laptop.csv"
+
+
+def cases():
+    for line in (ROOT / "sim" / "cases.txt").read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            yield tuple(line.split())
+
+
+def test_reference_covers_every_case():
+    if not REF.exists():
+        pytest.skip("no ncu reference yet; run tools/sim_ncu.sh")
+    have = {(r["kernel"], r["variant"], r["dims"]) for r in csv.DictReader(REF.open())}
+    assert set(cases()) <= have
+    configs = {(r["kernel_name"], r["block_size"], r["smem_per_block"]) for r in csv.DictReader(CONFIG.open())}
+    assert ("gemm_v3_kernel", "256", "9344") in configs
