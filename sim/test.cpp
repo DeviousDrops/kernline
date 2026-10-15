@@ -1,8 +1,10 @@
 // build/cachesim_test: unit tests for the cache simulator (docs/SIM.md, "Testing"). Exit 0 when
 // every check passes; each failure prints file:line and the check.
+#include <array>
 #include <cstdio>
 #include <vector>
 #include "sim/cache.h"
+#include "sim/launch_config.h"
 #include "sim/memory.h"
 #include "sim/sim.h"
 
@@ -113,7 +115,70 @@ static void test_store_invalidates_l1_and_writes_l2() {
     CHECK(c.op_ld_requests[0] == 3 && c.op_ld_sectors[0] == 12);
 }
 
+// Records the order op() is called in: (block, warp, i). Its ops are empty (mask 0).
+struct Recorder : Generator {
+    mutable std::vector<std::array<int64_t, 3>> seen;
+    void op(int64_t b, int w, int64_t i, WarpOp& o) const override {
+        seen.push_back({b, w, i});
+        o = WarpOp{};
+    }
+};
+
+static void test_waves_refill_in_block_order() {
+    Recorder g;
+    g.name = "rec";
+    g.blocks = 4;
+    g.threads = 32;
+    g.ops_per_warp = 2;
+    run(g, 2, 1, CacheParams{});  // 2 SMs, 1 resident block each
+    const std::vector<std::array<int64_t, 3>> want{{0, 0, 0}, {1, 0, 0}, {0, 0, 1}, {1, 0, 1},
+                                                   {2, 0, 0}, {3, 0, 0}, {2, 0, 1}, {3, 0, 1}};
+    CHECK(g.seen == want);
+}
+
+static void test_warps_round_robin_within_an_sm() {
+    Recorder g;
+    g.name = "rec";
+    g.blocks = 2;
+    g.threads = 64;  // 2 warps
+    g.ops_per_warp = 1;
+    run(g, 1, 2, CacheParams{});  // 1 SM, both blocks resident
+    const std::vector<std::array<int64_t, 3>> want{{0, 0, 0}, {0, 1, 0}, {1, 0, 0}, {1, 1, 0}};
+    CHECK(g.seen == want);
+}
+
+static void test_launch_config() {
+    const char* path = "/tmp/cachesim_test_launch_config.csv";
+    FILE* f = std::fopen(path, "w");
+    std::fputs("gpu,kernel_name,block_size,smem_per_block,resident_blocks,smem_config_bytes\n"
+               "rtx4060_laptop,gemm_v3_kernel,256,9344,2,65536\n",
+               f);
+    std::fclose(f);
+    const LaunchConfig cfg(path);
+    struct G : Generator {
+        void op(int64_t, int, int64_t, WarpOp&) const override {}
+    };
+    G real;
+    real.name = "gemm_v3_kernel";
+    real.threads = 256;
+    real.smem_per_block = 9344;
+    LaunchShape s = cfg.shape(real);
+    CHECK(s.measured && s.resident == 2 && s.carveout_bytes == 65536);
+    G small = real;  // a simulated-only 64x64 tile: 2 warps, 5 KB
+    small.threads = 64;
+    small.smem_per_block = 5120;
+    s = cfg.shape(small);  // keeps the real 16 warps per SM; 8 x 5 KB fits the real 64 KB
+    CHECK(!s.measured && s.resident == 8 && s.carveout_bytes == 65536);
+    G big = real;  // 2 x 40 KB doesn't fit 64 KB: the next carveout, 100 KB
+    big.smem_per_block = 40 << 10;
+    s = cfg.shape(big);
+    CHECK(!s.measured && s.resident == 2 && s.carveout_bytes == (100u << 10));
+}
+
 int main() {
+    test_waves_refill_in_block_order();
+    test_warps_round_robin_within_an_sm();
+    test_launch_config();
     test_coalesce();
     test_cache_lru();
     test_cache_sectors_and_writeback();
