@@ -2,6 +2,7 @@
 against the kernels' index math, and request/sector counts against Nsight Compute. No GPU."""
 import csv
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -179,3 +180,37 @@ def test_committed_validation_counts_match_ncu():
         assert r["sim_kernel"] == r["ncu_kernel"], where
         for c in COUNTS:
             assert r[c] == r["ncu_" + c], (where, c)
+
+
+def test_report_classifies_phases_and_full_sector_stores():
+    """The report's tables rest on these two: attention launches split by phase, and which
+    launches store whole 32 B sectors (the alternative L2 write-hit definition)."""
+    sys.path.insert(0, str(ROOT / "analysis"))
+    import cachesim
+    names = ["transpose_scale_kernel", "gemm_v0_kernel", "gemm_v0_kernel", "scale_kernel",
+             "softmax_v0_kernel", "gemm_v0_kernel", "gemm_v0_kernel"]
+    assert cachesim.phase_of([{"sim_kernel": k} for k in names]) == \
+        ["prep", "QK", "QK", "scale", "softmax", "PV", "PV"]
+
+    def launch(kernel, requests, sectors):
+        return {"sim_kernel": kernel, "st_requests": str(requests), "st_sectors": str(sectors)}
+    assert cachesim.full_sector_stores(launch("gemm_v3_kernel", 10, 160))      # 512 B in 16 sectors
+    assert cachesim.full_sector_stores(launch("transpose_scale_kernel", 10, 40))  # 128 B in 4
+    assert not cachesim.full_sector_stores(launch("gemm_v0_kernel", 10, 160))   # 8 B per sector
+    assert not cachesim.full_sector_stores(launch("softmax_v0_kernel", 10, 320))  # 4 B per sector
+
+
+def test_sweep_covers_both_gpus_and_every_tile():
+    path = ROOT / "results" / "sim" / "sweep.csv"
+    if not path.exists():
+        pytest.skip("no sweep yet; run analysis/cachesim.py sweep")
+    rows = list(csv.DictReader(path.open()))
+    seen = {(r["gpu"], r["variant"], r["tile"]) for r in rows}
+    for gpu in ("rtx4060_laptop", "rtx4070_laptop"):
+        for t in ("8", "16", "32"):
+            assert (gpu, "v2", t) in seen
+        for bm in (64, 128):
+            for bk in (8, 16, 32):
+                assert (gpu, "v3", f"{bm}x{bm}x{bk}x8") in seen
+    real = [r for r in rows if (r["variant"], r["tile"]) in (("v2", "32"), ("v3", "128x128x8x8"))]
+    assert real and all(r["simulated_only"] == "0" for r in real)
