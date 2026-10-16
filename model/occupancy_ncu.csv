@@ -1,0 +1,83 @@
+gpu,kernel,threads,regs,smem,ncu_blocks_per_sm,ncu_occupancy_pct,ncu_waves_per_sm
+rtx4060_laptop,"at::vectorized_elementwise_kernel<4, at::AUnaryFunctor<float, float, float, binary_internal::MulFunctor<float>>, std::array<char *, 2>, 0>",128,28,0,12,100.0,2.67
+rtx4060_laptop,ampere_sgemm_128x128_tn,256,118,16896,2,33.33,16.0
+rtx4060_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 10, 0, 0, 32>",128,48,0,10,83.33,12.8
+rtx4060_laptop,"at::vectorized_elementwise_kernel<4, at::<unnamed>::isneginf_kernel_impl",128,28,0,12,100.0,42.67
+rtx4060_laptop,"at::reduce_kernel<512, 1, at::ReduceOp<bool, at::func_wrapper_t<bool, at::and_kernel_cuda",512,26,16,3,100.0,10.67
+rtx4060_laptop,"at::vectorized_elementwise_kernel<4, at::FillFunctor<float>, std::array<char *, 1>, 0>",128,16,0,12,100.0,0.0
+rtx4060_laptop,"at::elementwise_kernel<128, 2, at::gpu_kernel_impl_nocast<at::<unnamed>::where_kernel_impl",128,16,0,12,100.0,170.67
+rtx4060_laptop,ampere_sgemm_128x128_nn,256,118,16640,2,33.33,2.0
+rtx4060_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 11, 0, 0, 32>",128,80,0,6,50.0,42.67
+rtx4060_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 8, 0, 0, 32>",128,28,0,12,100.0,2.67
+rtx4060_laptop,"at::<unnamed>::cunn_SoftMaxForwardReg<float, float, float, at::<unnamed>::SoftMaxForwardEpilogue, long, 4>",1024,30,128,1,66.67,2048.0
+rtx4060_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 9, 0, 0, 32>",128,40,0,12,100.0,5.33
+rtx4060_laptop,transpose_scale_kernel,256,16,4224,6,100.0,5.33
+rtx4060_laptop,gemm_v0_kernel,256,40,0,6,100.0,28.44
+rtx4060_laptop,scale_kernel,256,28,0,6,100.0,7.11
+rtx4060_laptop,softmax_v0_kernel,128,38,0,12,100.0,0.33
+rtx4060_laptop,gemm_v3_kernel,256,121,8320,2,33.33,1.33
+rtx4060_laptop,softmax_v2_kernel<8>,256,48,0,5,83.33,12.8
+rtx4060_laptop,softmax_v2_kernel<16>,256,80,0,3,50.0,42.67
+rtx4060_laptop,softmax_v2_kernel<2>,256,28,0,6,100.0,2.67
+rtx4060_laptop,softmax_v3_kernel<1>,256,40,16512,5,83.33,409.6
+rtx4060_laptop,softmax_v2_kernel<4>,256,40,0,6,100.0,5.33
+rtx4060_laptop,ampere_sgemm_128x64_nn,128,122,12544,4,33.33,9.33
+rtx4060_laptop,ampere_sgemm_64x64_nn,64,126,8448,8,33.33,5.33
+rtx4060_laptop,gemm_v1_kernel,256,40,0,6,100.0,28.44
+rtx4060_laptop,gemm_v2_kernel,1024,38,8192,1,66.67,42.67
+rtx4060_laptop,gemm_v4_kernel,256,127,35840,2,33.33,1.33
+rtx4060_laptop,"unnamed>::vectorized_layer_norm_kernel<float, float, 0>",128,40,24,12,100.0,3.56
+rtx4060_laptop,layernorm_v0_kernel,128,40,0,12,100.0,0.03
+rtx4060_laptop,layernorm_v1_kernel,256,40,0,6,100.0,0.89
+rtx4060_laptop,layernorm_v2_kernel<8>,256,56,0,4,66.67,1.33
+rtx4060_laptop,layernorm_v2_kernel<0>,256,34,0,6,100.0,3.56
+rtx4060_laptop,layernorm_v3_kernel<1>,128,40,3200,12,100.0,3.56
+rtx4060_laptop,layernorm_v3_kernel<1>,1024,40,65664,1,66.67,170.67
+rtx4060_laptop,"unnamed>::cunn_SoftMaxForward<4, float, float, float, unnamed>::SoftMaxForwardEpilogue>",1024,36,128,1,66.67,170.67
+rtx4060_laptop,softmax_v1_kernel,256,38,0,6,100.0,10.67
+rtx4060_laptop,softmax_v2_kernel<0>,256,38,0,6,100.0,3.56
+rtx4060_laptop,softmax_v3_kernel<1>,128,40,4224,12,100.0,42.67
+rtx4060_laptop,softmax_v3_kernel<1>,128,40,8320,10,83.33,102.4
+rtx4060_laptop,softmax_v3_kernel<1>,1024,40,65664,1,66.67,170.67
+rtx4060_laptop,softmax_v3_kernel<1>,128,40,2176,12,100.0,21.33
+rtx4070_laptop,"at::vectorized_elementwise_kernel<4, at::AUnaryFunctor<float, float, float, binary_internal::MulFunctor<float>>, std::array<char *, 2>, 0>",128,28,0,12,100.0,1.78
+rtx4070_laptop,ampere_sgemm_128x128_tn,256,118,16896,2,33.33,10.67
+rtx4070_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 10, 0, 0, 32>",128,48,0,10,83.33,8.53
+rtx4070_laptop,"at::vectorized_elementwise_kernel<4, at::<unnamed>::isneginf_kernel_impl",128,28,0,12,100.0,28.44
+rtx4070_laptop,"at::reduce_kernel<512, 1, at::ReduceOp<bool, at::func_wrapper_t<bool, at::and_kernel_cuda",512,26,16,3,100.0,7.11
+rtx4070_laptop,"at::vectorized_elementwise_kernel<4, at::FillFunctor<float>, std::array<char *, 1>, 0>",128,16,0,12,100.0,0.0
+rtx4070_laptop,"at::elementwise_kernel<128, 2, at::gpu_kernel_impl_nocast<at::<unnamed>::where_kernel_impl",128,16,0,12,100.0,113.78
+rtx4070_laptop,ampere_sgemm_128x128_nn,256,118,16640,2,33.33,1.33
+rtx4070_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 11, 0, 0, 32>",128,80,0,6,50.0,28.44
+rtx4070_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 8, 0, 0, 32>",128,28,0,12,100.0,1.78
+rtx4070_laptop,"at::<unnamed>::cunn_SoftMaxForwardReg<float, float, float, at::<unnamed>::SoftMaxForwardEpilogue, long, 4>",1024,30,128,1,66.67,1365.33
+rtx4070_laptop,"<unnamed>::softmax_warp_forward<float, float, float, 9, 0, 0, 32>",128,40,0,12,100.0,3.56
+rtx4070_laptop,transpose_scale_kernel,256,16,4224,6,100.0,3.56
+rtx4070_laptop,gemm_v0_kernel,256,40,0,6,100.0,18.96
+rtx4070_laptop,scale_kernel,256,28,0,6,100.0,4.74
+rtx4070_laptop,softmax_v0_kernel,128,38,0,12,100.0,0.22
+rtx4070_laptop,gemm_v3_kernel,256,121,8320,2,33.33,0.89
+rtx4070_laptop,softmax_v2_kernel<8>,256,48,0,5,83.33,8.53
+rtx4070_laptop,softmax_v2_kernel<16>,256,80,0,3,50.0,28.44
+rtx4070_laptop,softmax_v2_kernel<2>,256,28,0,6,100.0,1.78
+rtx4070_laptop,softmax_v3_kernel<1>,256,40,16512,5,83.33,273.07
+rtx4070_laptop,softmax_v2_kernel<4>,256,40,0,6,100.0,3.56
+rtx4070_laptop,ampere_sgemm_128x64_nn,128,122,12544,4,33.33,6.22
+rtx4070_laptop,ampere_sgemm_64x64_nn,64,126,8448,8,33.33,8.0
+rtx4070_laptop,gemm_v1_kernel,256,40,0,6,100.0,18.96
+rtx4070_laptop,gemm_v2_kernel,1024,38,8192,1,66.67,28.44
+rtx4070_laptop,gemm_v4_kernel,256,127,35840,2,33.33,0.89
+rtx4070_laptop,"unnamed>::vectorized_layer_norm_kernel<float, float, 0>",128,40,24,12,100.0,2.37
+rtx4070_laptop,layernorm_v0_kernel,128,40,0,12,100.0,0.02
+rtx4070_laptop,layernorm_v1_kernel,256,40,0,6,100.0,0.59
+rtx4070_laptop,layernorm_v2_kernel<8>,256,56,0,4,66.67,0.89
+rtx4070_laptop,layernorm_v2_kernel<0>,256,34,0,6,100.0,2.37
+rtx4070_laptop,layernorm_v3_kernel<1>,128,40,3200,12,100.0,2.37
+rtx4070_laptop,layernorm_v3_kernel<1>,1024,40,65664,1,66.67,113.78
+rtx4070_laptop,"unnamed>::cunn_SoftMaxForward<4, float, float, float, unnamed>::SoftMaxForwardEpilogue>",1024,36,128,1,66.67,113.78
+rtx4070_laptop,softmax_v1_kernel,256,38,0,6,100.0,7.11
+rtx4070_laptop,softmax_v2_kernel<0>,256,38,0,6,100.0,2.37
+rtx4070_laptop,softmax_v3_kernel<1>,128,40,4224,12,100.0,28.44
+rtx4070_laptop,softmax_v3_kernel<1>,128,40,8320,10,83.33,68.27
+rtx4070_laptop,softmax_v3_kernel<1>,1024,40,65664,1,66.67,113.78
+rtx4070_laptop,softmax_v3_kernel<1>,128,40,2176,12,100.0,14.22
