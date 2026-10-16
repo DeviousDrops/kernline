@@ -23,6 +23,9 @@ rtx4060_laptop,softmax_v3_kernel<1>,256,40,16512,5,83.33,409.6
 rtx4060_laptop,softmax_v2_kernel<4>,256,40,0,6,100.0,5.33
 rtx4060_laptop,ampere_sgemm_128x64_nn,128,122,12544,4,33.33,9.33
 rtx4060_laptop,ampere_sgemm_64x64_nn,64,126,8448,8,33.33,5.33
+rtx4060_laptop,gemm_v1_kernel,256,40,0,6,100.0,28.44
+rtx4060_laptop,gemm_v2_kernel,1024,38,8192,1,66.67,42.67
+rtx4060_laptop,gemm_v4_kernel,256,127,35840,2,33.33,1.33
 rtx4060_laptop,"unnamed>::vectorized_layer_norm_kernel<float, float, 0>",128,40,24,12,100.0,3.56
 rtx4060_laptop,layernorm_v0_kernel,128,40,0,12,100.0,0.03
 rtx4060_laptop,layernorm_v1_kernel,256,40,0,6,100.0,0.89

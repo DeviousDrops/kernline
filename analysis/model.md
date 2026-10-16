@@ -27,7 +27,7 @@ The tiers (D2) then add effects one at a time:
 | tier | adds | captures |
 |---|---|---|
 | T0 | roofline over every measured ceiling (FP32/tensor peak, DRAM, L2, shared memory) and the load/store issue limits | which unit bounds the kernel |
-| T1 | occupancy (checked against ncu on all 79 launch shapes) and per-SM rounds: the busiest SM's blocks, in rounds of at most blocks-per-SM, each round at min(1, warps / sat_warps) of the SM's rate | partial waves, grids smaller than the GPU, small blocks |
+| T1 | occupancy (checked against ncu on all 82 launch shapes) and per-SM rounds: the busiest SM's blocks, in rounds of at most blocks-per-SM, each round at min(1, warps / sat_warps) of the SM's rate | partial waves, grids smaller than the GPU, small blocks |
 | T2 | Little's law (bytes in flight vs DRAM/L2 latency from the pointer chase) and a per-launch overhead | latency-bound memory streams, launch-dominated small calls |
 
 Every prediction is made at the SM and memory clock its result row recorded (D7): compute, L2,
@@ -197,12 +197,12 @@ On the 4070 Laptop:
 On the 4060 Laptop, held out:
 
 | B×S×D×H | measured total | measured Σ steps | model Σ steps T0 | T1 | T2 | T2 vs total | PyTorch eager | PyTorch graph | ours vs eager |
+|---|---|---|---|---|---|---|---|---|---|
 | 1x512x768x12 | 1.428 | 1.330 | 1.084 | 1.294 | 1.324 | -7% | 1.508 | 1.564 | 1.06× |
 | 1x2048x768x12 | 9.432 | 9.483 | 9.315 | 9.317 | 9.347 | -1% | 11.560 | 11.423 | 1.23× |
 | 4x1024x768x12 | 13.962 | 13.509 | 14.035 | 14.037 | 14.067 | +1% | 16.448 | 16.485 | 1.18× |
 | 8x512x768x12 | 11.553 | 11.290 | 11.756 | 11.758 | 11.788 | +2% | 12.909 | 12.874 | 1.12× |
 | 8x2048x768x12 | 78.111 | 78.699 | 79.921 | 79.921 | 79.951 | +2% | 96.315 | — (out of memory) | 1.23× |
-| step | measured | model T2 | error | limiter |
 
 Per step at 8x2048x768x12, 4070:
 
