@@ -49,7 +49,7 @@ tools/suite.sh        full bench + ncu suite (D8): every kernel, variant and mod
 tools/ceilings/       microbenchmarks → specs/<gpu>.json
 analysis/roofline.py  plots from results/*.csv, one panel per GPU
 model/                Python performance model (Part A); write-up in analysis/model.md
-sim/                  C++ cache simulator (Part B)
+sim/                  C++ cache simulator (Part B); design in docs/SIM.md, results in results/sim/, write-up in analysis/cachesim.md
 specs/<gpu>.json      measured ceilings + static specs
 results/<gpu>/*.csv   committed measurements
 ```

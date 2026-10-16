@@ -1,0 +1,24 @@
+# Cache-simulator validation cases (docs/SIM.md, Experiments 1). tools/sim_ncu.sh profiles each
+# one; analysis/cachesim.py simulates each one and compares launch by launch.
+gemm v0 1024x1024x1024
+gemm v0 2048x2048x2048
+gemm v2 1024x1024x1024
+gemm v2 2048x2048x2048
+gemm v2 4096x4096x4096
+gemm v3 1024x1024x1024
+gemm v3 2048x2048x2048
+gemm v3 4096x4096x4096
+attention v0 12x256x64
+attention v0 12x512x64
+attention v0 12x1024x64
+attention v0 12x2048x64
+attention v1 12x256x64
+attention v1 12x512x64
+attention v1 12x1024x64
+attention v1 12x2048x64
+attention v1 12x4096x64
+attention v2 12x256x64
+attention v2 12x512x64
+attention v2 12x1024x64
+attention v2 12x2048x64
+attention v2 12x4096x64

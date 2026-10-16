@@ -29,3 +29,13 @@ target_link_libraries(block PRIVATE kernels CUDA::nvml CUDA::nvtx3)
 add_executable(ceilings tools/ceilings/ceilings.cu)
 target_include_directories(ceilings PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(ceilings PRIVATE CUDA::nvml)
+
+# Cache simulator (docs/SIM.md): CPU only. simcore holds everything but the two mains.
+file(GLOB SIM_SRCS CONFIGURE_DEPENDS sim/*.cpp sim/generators/*.cpp)
+list(FILTER SIM_SRCS EXCLUDE REGEX "/sim/(main|test)\\.cpp$")
+add_library(simcore STATIC ${SIM_SRCS})
+target_include_directories(simcore PUBLIC ${CMAKE_SOURCE_DIR})
+add_executable(cachesim_test sim/test.cpp)
+target_link_libraries(cachesim_test PRIVATE simcore)
+add_executable(cachesim sim/main.cpp)
+target_link_libraries(cachesim PRIVATE simcore)

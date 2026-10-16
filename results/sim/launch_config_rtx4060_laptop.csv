@@ -1,0 +1,12 @@
+gpu,kernel_name,block_size,smem_per_block,resident_blocks,smem_config_bytes
+rtx4060_laptop,gemm_v0_kernel,256,1024,6,16384
+rtx4060_laptop,gemm_v2_kernel,1024,9216,1,16384
+rtx4060_laptop,gemm_v3_kernel,256,9344,2,65536
+rtx4060_laptop,scale_kernel,256,1024,6,16384
+rtx4060_laptop,softmax_v0_kernel,128,1024,12,32768
+rtx4060_laptop,softmax_v2_kernel<16>,256,1024,3,16384
+rtx4060_laptop,softmax_v2_kernel<2>,256,1024,6,16384
+rtx4060_laptop,softmax_v2_kernel<4>,256,1024,6,16384
+rtx4060_laptop,softmax_v2_kernel<8>,256,1024,5,16384
+rtx4060_laptop,softmax_v3_kernel<1>,256,17536,5,102400
+rtx4060_laptop,transpose_scale_kernel,256,5248,6,65536
